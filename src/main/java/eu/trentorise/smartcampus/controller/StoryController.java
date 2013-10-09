@@ -121,7 +121,7 @@ public class StoryController extends AbstractObjectController {
 			String oString = domainEngineClient.searchDomainObject(obj.getDomainType(), obj.getDomainId(), null);
 			DomainObject dObj = new DomainObject(oString);
 			StoryObject uObj = EventProcessorImpl.convertStoryObject(dObj, storage);
-			storage.storeObject(uObj);
+//			storage.storeObject(uObj);
 			
 			uObj.filterUserData(getUserId());
 			return new ResponseEntity<StoryObject>(uObj,HttpStatus.OK);

@@ -46,7 +46,11 @@
 		pathPattern="/objects/{id}/attend" method="PUT" />
 	<resourceMapping uri="territoryservice.communitydata.write"
 		pathPattern="/objects/{id}/notAttend" method="PUT" />
-  <resourceMapping uri="territoryservice.data.read"
+  <resourceMapping uri="territoryservice.communitydata.write"
+    pathPattern="/objects/{id}/follow" method="PUT" />
+  <resourceMapping uri="territoryservice.communitydata.write"
+    pathPattern="/objects/{id}/unfollow" method="PUT" />
+	<resourceMapping uri="territoryservice.data.read"
     pathPattern="/sync" method="POST" />
 	
 

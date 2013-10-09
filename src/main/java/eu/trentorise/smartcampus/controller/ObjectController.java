@@ -127,4 +127,69 @@ public class ObjectController extends AbstractObjectController {
 			return new ResponseEntity<Object>(HttpStatus.METHOD_FAILURE);
 		}
 	}
+	
+	@RequestMapping(value = "/objects/{id}/unfollow", method = RequestMethod.PUT)
+	public ResponseEntity<Object> unfollow(@PathVariable String id) {
+		try {
+			BaseDTObject obj = (BaseDTObject) storage.getObjectById(id);
+			String operation = "unfollow";
+			String user = getUserId();
+
+			Map<String, Object> parameters = new HashMap<String, Object>();
+			parameters.put("user", user);
+			domainEngineClient.invokeDomainOperation(operation,
+					obj.getDomainType(), obj.getDomainId(), parameters, null,
+					null);
+			String oString = domainEngineClient.searchDomainObject(
+					obj.getDomainType(), obj.getDomainId(), null);
+			DomainObject dObj = new DomainObject(oString);
+			if (obj instanceof EventObject)
+				obj = EventProcessorImpl.convertEventObject(dObj, storage);
+			else if (obj instanceof POIObject)
+				obj = EventProcessorImpl.convertPOIObject(dObj);
+			else if (obj instanceof StoryObject)
+				obj = EventProcessorImpl.convertStoryObject(dObj, storage);
+			storage.storeObject(obj);
+			obj.filterUserData(getUserId());
+			return new ResponseEntity<Object>(obj, HttpStatus.OK);
+		} catch (Exception e) {
+			logger.error("Failed to unfollow object with id " + id + ": "
+					+ e.getMessage());
+			e.printStackTrace();
+			return new ResponseEntity<Object>(HttpStatus.METHOD_FAILURE);
+		}
+	}
+
+	@RequestMapping(value = "/objects/{id}/follow", method = RequestMethod.PUT)
+	public ResponseEntity<Object> follow(@PathVariable String id) {
+		try {
+			BaseDTObject obj = (BaseDTObject) storage.getObjectById(id);
+			String userId = getUserId();
+			String operation = "follow";
+			Map<String, Object> parameters = new HashMap<String, Object>();
+			parameters.put("user", userId);
+			parameters.put("topic", userId);
+			domainEngineClient.invokeDomainOperation(operation,
+					obj.getDomainType(), obj.getDomainId(), parameters, null,
+					null);
+			String oString = domainEngineClient.searchDomainObject(
+					obj.getDomainType(), obj.getDomainId(), null);
+			DomainObject dObj = new DomainObject(oString);
+			if (obj instanceof EventObject)
+				obj = EventProcessorImpl.convertEventObject(dObj, storage);
+			else if (obj instanceof POIObject)
+				obj = EventProcessorImpl.convertPOIObject(dObj);
+			else if (obj instanceof StoryObject)
+				obj = EventProcessorImpl.convertStoryObject(dObj, storage);
+			storage.storeObject(obj);
+			obj.filterUserData(userId);
+			return new ResponseEntity<Object>(obj, HttpStatus.OK);
+		} catch (Exception e) {
+			logger.error("Failed to follow object with id " + id + ": "
+					+ e.getMessage());
+			e.printStackTrace();
+			return new ResponseEntity<Object>(HttpStatus.METHOD_FAILURE);
+		}
+	}
+
 }

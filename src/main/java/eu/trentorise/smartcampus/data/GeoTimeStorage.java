@@ -123,10 +123,4 @@ public class GeoTimeStorage extends GenericObjectSyncMongoStorage<GeoTimeSyncObj
 		}
 		return bean;
 	}
-
-	public static void main(String[] args) {
-		Criteria c = createSearchCriteria(GeoTimeSyncObjectBean.class, null, Long.MAX_VALUE, null, new HashMap<String, Object>(), "text");
-		System.err.println(c.getCriteriaObject());
-	}
-	
 }

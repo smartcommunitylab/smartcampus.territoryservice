@@ -59,9 +59,7 @@ public class AbstractObjectController extends SCController {
 		if (obj.getDomainId() ==  null) {
 			Map<String,Object> params = new HashMap<String, Object>();
 			params.put("id", obj.getId());
-			System.err.println("searching "+obj.getDomainType()+","+params);
 			List<String> list = client.searchDomainObjects(obj.getDomainType(), params, null);
-			System.err.println("found "+list);
 			if (list != null && !list.isEmpty()) {
 				DomainObject dobj = new DomainObject(list.get(0));
 				obj.setDomainId(dobj.getId());

@@ -34,7 +34,7 @@
 	<mvc:annotation-driven />
 
 	<!-- MVC Controllers -->
-	<context:component-scan base-package="eu.trentorise.smartcampus.controller" />
+	<context:component-scan base-package="eu.trentorise.smartcampus" />
 
     <context:property-placeholder  location="classpath:territoryservice.properties" />
   
@@ -45,7 +45,7 @@
 
 	<bean id="mongoTemplate" class="org.springframework.data.mongodb.core.MongoTemplate">
 		<constructor-arg ref="mongo" />
-		<constructor-arg name="databaseName" value="discovertrento" />
+		<constructor-arg name="databaseName" value="${smartcampus.territoryservice.db}" />
 	</bean>
 
     <bean id="syncObjectStorage" class="eu.trentorise.smartcampus.data.GeoTimeStorage">
@@ -55,7 +55,7 @@
 	<bean id="eventProcessor" class="eu.trentorise.smartcampus.processor.EventProcessorImpl">
 		<property name="storage" ref="syncObjectStorage" />
 	</bean>
-
+	
 	<bean id="connectionFactory" class="org.apache.activemq.ActiveMQConnectionFactory">
 		<property name="brokerURL" value="${smartcampus.vas.web.activeMQ.brokerURL}" />
 	</bean>

@@ -16,10 +16,13 @@
 package eu.trentorise.smartcampus.dt.model;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import eu.trentorise.smartcampus.presentation.common.util.Util;
 import eu.trentorise.smartcampus.presentation.data.BasicObject;
@@ -184,6 +187,9 @@ public class BaseDTObject extends BasicObject {
 
 	@SuppressWarnings("unchecked")
 	public Map<String,Object> domainCommunityData() {
+		if (communityData == null) {
+			communityData = new CommunityData();
+		}
 		Map<String,Object> map = Util.convert(communityData, Map.class);
 		map.remove("ratingsCount");
 		map.remove("followsCount");
@@ -204,4 +210,31 @@ public class BaseDTObject extends BasicObject {
 		return map;
 	}
 
+	public Set<String> checkEquals(Object obj) {
+		if (this == obj || obj == null || getClass() != obj.getClass()) 
+			return Collections.emptySet();
+		
+		Set<String> res = new HashSet<String>();
+		BaseDTObject other = (BaseDTObject) obj;
+		if (fromTime == null) {
+			if (other.fromTime != null)
+				res.add("fromTime");
+		} else if (!fromTime.equals(other.fromTime))
+			res.add("fromTime");
+		if (!Arrays.equals(location, other.location))
+			res.add("location");
+		if (timing == null) {
+			if (other.timing != null)
+				res.add("timing");
+		} else if (!timing.equals(other.timing))
+			res.add("timing");
+		if (toTime == null) {
+			if (other.toTime != null)
+				res.add("toTime");
+		} else if (!toTime.equals(other.toTime))
+			res.add("toTime");
+		return res;
+	}
+	
+	
 }

@@ -123,8 +123,6 @@ public class EventController extends AbstractObjectController {
 				}
 			}
 			
-			System.err.println("updating: "+operation+"("+obj.getDomainType()+","+obj.getDomainId()+","+parameters+")");
-			
 			domainEngineClient.invokeDomainOperation(
 					operation, 
 					obj.getDomainType(), 
@@ -134,8 +132,9 @@ public class EventController extends AbstractObjectController {
 			String oString = domainEngineClient.searchDomainObject(obj.getDomainType(), obj.getDomainId(), null);
 			DomainObject dObj = new DomainObject(oString);
 			EventObject uObj = EventProcessorImpl.convertEventObject(dObj, storage);
-			storage.storeObject(uObj);
+//			storage.storeObject(uObj);
 			uObj.filterUserData(getUserId());
+
 			return new ResponseEntity<EventObject>(uObj,HttpStatus.OK);
 		} catch (Exception e) {
 			logger.error("Failed to update event: "+e.getMessage());

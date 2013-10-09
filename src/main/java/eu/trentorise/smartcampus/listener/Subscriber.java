@@ -27,7 +27,7 @@ public class Subscriber {
 	
 	public Subscriber(DomainEngineClient client) {
 		try {
-			client.subscribeDomain("eu.trentorise.smartcampus.domain.discovertrento.BaseDTObject", null);
+//			client.subscribeDomain("eu.trentorise.smartcampus.domain.discovertrento.BaseDTObject", null);
 			client.subscribeDomain("eu.trentorise.smartcampus.domain.discovertrento.POIObject", null);
 			client.subscribeDomain("eu.trentorise.smartcampus.domain.discovertrento.EventObject", null);
 			client.subscribeDomain("eu.trentorise.smartcampus.domain.discovertrento.StoryObject", null);

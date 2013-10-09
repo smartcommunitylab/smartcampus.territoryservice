@@ -17,7 +17,9 @@ package eu.trentorise.smartcampus.dt.model;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class StoryObject extends BaseDTObject {
 
@@ -64,10 +66,18 @@ public class StoryObject extends BaseDTObject {
 		else setAttending(Collections.<String>emptyList());
 	}
 
-//	public static void filterUserData(List<StoryObject> list, String userId) {
-//		for (StoryObject story : list) {
-//			filterUserData(story, userId);
-//		}
-//	}
+	@Override
+	public Set<String> checkEquals(Object obj) {
+		Set<String> res = super.checkEquals(obj);
+		if (res.isEmpty()) res = new HashSet<String>();
+		StoryObject other = (StoryObject) obj;
+		if (getSteps() != null) {
+			if (!getSteps().equals(other.getSteps())) 
+				res.add("steps");
+		} else if (other.getSteps() != null) { 
+				res.add("steps");
+		}
+		return res;
+	}
 	
 }

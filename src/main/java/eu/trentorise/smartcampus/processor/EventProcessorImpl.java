@@ -56,10 +56,13 @@ public class EventProcessorImpl implements DomainUpdateListener {
 	private static final String EVENT_DELETED = "DELETED";
 
 	private static final String VAR_ENTITY_ID = "entityId";
+	private static final String VAR_DATA = "data";
 
 	@Autowired
 	private GeoTimeObjectSyncStorage storage;
-
+	@Autowired
+	private UpdateNotifier helper;
+	
 	private static Log logger = LogFactory.getLog(EventProcessorImpl.class);
 
 	public EventProcessorImpl() {
@@ -116,6 +119,7 @@ public class EventProcessorImpl implements DomainUpdateListener {
 			try {
 				storage.storeObject(o);
 			} catch (DataException e) {
+				e.printStackTrace();
 				logger.error("failed to store object: "
 						+ o.getClass().getName());
 			}
@@ -124,6 +128,7 @@ public class EventProcessorImpl implements DomainUpdateListener {
 			try {
 				storage.storeObject(o);
 			} catch (DataException e) {
+				e.printStackTrace();
 				logger.error("failed to store object: "
 						+ o.getClass().getName());
 			}
@@ -140,22 +145,24 @@ public class EventProcessorImpl implements DomainUpdateListener {
 		} else if (EVENT_UPDATED_VAR.equals(event.getEventType())) {
 			logger.debug("Updating POIObject: " + event.getDoId());
 			DomainObject dObj = readDOFromEvent(event);
-			POIObject eObj = convertPOIObject(dObj);
+			POIObject poiObj = convertPOIObject(dObj);
 
 			try {
-				storage.getObjectById(eObj.getId(), POIObject.class);
+				storage.getObjectById(poiObj.getId(), POIObject.class);
 			} catch (NotFoundException e) {
 				createPOI(event, created);
 				return;
 			}
-			updated.add(eObj);
-			// TODO:
-			// - detect the difference
+			if (VAR_DATA.equals(event.getParameter())) {
+				helper.poiUpdated(poiObj);
+			}
+			updated.add(poiObj);
 		} else if (EVENT_DELETED.equals(event.getEventType())) {
 			logger.debug("Deleting POIObject: " + event.getDoId());
 			DomainObject dObj = readDOFromEvent(event);
-			POIObject eObj = convertPOIObject(dObj);
-			storage.deleteObjectById(eObj.getId());
+			POIObject poiObj = convertPOIObject(dObj);
+			helper.poiDeleted(poiObj);
+			storage.deleteObjectById(poiObj.getId());
 		}
 	}
 
@@ -163,8 +170,10 @@ public class EventProcessorImpl implements DomainUpdateListener {
 			throws Exception {
 		logger.debug("Processing new POIObject: " + event.getDoId());
 		DomainObject dObj = readDOFromEvent(event);
-		POIObject eObj = convertPOIObject(dObj);
-		created.add(eObj);
+		POIObject poiObj = convertPOIObject(dObj);
+		created.add(poiObj);
+		helper.poiCreated(poiObj);
+
 	}
 
 	private void processEvent(DomainEvent event, List<BaseDTObject> created,
@@ -184,14 +193,15 @@ public class EventProcessorImpl implements DomainUpdateListener {
 				createEvent(event, created);
 				return;
 			}
-
+			if (VAR_DATA.equals(event.getParameter())) {
+				helper.eventUpdated(eObj);
+			}
 			updated.add(eObj);
-			// TODO:
-			// - detect the difference
 		} else if (EVENT_DELETED.equals(event.getEventType())) {
 			logger.debug("Deleting UserEventObject: " + event.getDoId());
 			DomainObject dObj = readDOFromEvent(event);
 			EventObject eObj = convertEventObject(dObj, storage);
+			helper.eventDeleted(eObj);
 			storage.deleteObjectById(eObj.getId());
 		}
 	}
@@ -206,22 +216,23 @@ public class EventProcessorImpl implements DomainUpdateListener {
 		} else if (EVENT_UPDATED_VAR.equals(event.getEventType())) {
 			logger.debug("Updating UserStoryObject: " + event.getDoId());
 			DomainObject dObj = readDOFromEvent(event);
-			StoryObject eObj = convertStoryObject(dObj, storage);
+			StoryObject storyObj = convertStoryObject(dObj, storage);
 			try {
-				storage.getObjectById(eObj.getId(), StoryObject.class);
+				storage.getObjectById(storyObj.getId(), StoryObject.class);
 			} catch (NotFoundException e) {
 				createStory(event, created);
 				return;
 			}
-
-			updated.add(eObj);
-			// TODO:
-			// - detect the difference
+			if (VAR_DATA.equals(event.getParameter())) {
+				helper.storyUpdated(storyObj);
+			}
+			updated.add(storyObj);
 		} else if (EVENT_DELETED.equals(event.getEventType())) {
 			logger.debug("Deleting UserStoryObject: " + event.getDoId());
 			DomainObject dObj = readDOFromEvent(event);
-			StoryObject eObj = convertStoryObject(dObj, storage);
-			storage.deleteObjectById(eObj.getId());
+			StoryObject storyObj = convertStoryObject(dObj, storage);
+			helper.storyDeleted(storyObj);
+			storage.deleteObjectById(storyObj.getId());
 		}
 	}
 
@@ -255,14 +266,16 @@ public class EventProcessorImpl implements DomainUpdateListener {
 		DomainObject dObj = readDOFromEvent(event);
 		EventObject eObj = convertEventObject(dObj, storage);
 		created.add(eObj);
+		helper.eventCreated(eObj);
 	}
 
 	private void createStory(DomainEvent event, List<BaseDTObject> created)
 			throws Exception, NotFoundException, DataException {
 		logger.debug("Processing new StoryObject: " + event.getDoId());
 		DomainObject dObj = readDOFromEvent(event);
-		StoryObject eObj = convertStoryObject(dObj, storage);
-		created.add(eObj);
+		StoryObject storyObj = convertStoryObject(dObj, storage);
+		created.add(storyObj);
+		helper.storyCreated(storyObj);
 	}
 
 	@SuppressWarnings("unchecked")

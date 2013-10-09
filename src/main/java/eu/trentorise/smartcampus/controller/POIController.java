@@ -146,7 +146,7 @@ public class POIController extends AbstractObjectController {
 			String oString = domainEngineClient.searchDomainObject(obj.getDomainType(), obj.getDomainId(), null);
 			DomainObject dObj = new DomainObject(oString);
 			POIObject uObj = EventProcessorImpl.convertPOIObject(dObj);
-			storage.storeObject(uObj);
+//			storage.storeObject(uObj);
 			
 			uObj.filterUserData(getUserId());
 			
