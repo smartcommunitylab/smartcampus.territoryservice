@@ -241,8 +241,6 @@ public class NotificationHelper extends RemoteConnector implements UpdateNotifie
 			n.getContent().put("updated", true);
 			try {
 				BaseDTObject old = storage.getObjectById(o.getId(), o.getClass());
-				System.err.println("!!!!!"+old.getFromTime());
-				System.err.println("!!!!!"+o.getFromTime());
 				Set<String> changed = o.checkEquals(old);
 				if (changed.isEmpty()) return false;
 				n.getContent().put("changes", changed);
