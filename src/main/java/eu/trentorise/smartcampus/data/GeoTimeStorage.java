@@ -15,6 +15,7 @@
  ******************************************************************************/
 package eu.trentorise.smartcampus.data;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -54,7 +55,12 @@ public class GeoTimeStorage extends GenericObjectSyncMongoStorage<GeoTimeSyncObj
 		criteria.and("deleted").is(false);
 		if (inCriteria != null) {
 			for (String key : inCriteria.keySet()) {
-				criteria.and("content."+key).is(inCriteria.get(key));
+				Object value = inCriteria.get(key);
+				if (value instanceof Collection) {
+					criteria.and("content."+key).in((Collection<?>)value);
+				} else {
+					criteria.and("content."+key).is(value);
+				}
 			}
 		}
 		if (circle != null) {
