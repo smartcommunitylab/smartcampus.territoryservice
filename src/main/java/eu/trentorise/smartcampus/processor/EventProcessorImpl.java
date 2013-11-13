@@ -54,8 +54,9 @@ public class EventProcessorImpl implements DomainUpdateListener {
 
 	private static final String EVENT_UPDATED_VAR = "VAR_UPDATED";
 	private static final String EVENT_DELETED = "DELETED";
+	private static final String EVENT_CREATED = "CREATED";
 
-	private static final String VAR_ENTITY_ID = "entityId";
+//	private static final String VAR_ENTITY_ID = "entityId";
 	private static final String VAR_DATA = "data";
 
 	@Autowired
@@ -138,9 +139,9 @@ public class EventProcessorImpl implements DomainUpdateListener {
 	private void processPOI(DomainEvent event, List<BaseDTObject> created,
 			List<BaseDTObject> updated, List<BaseDTObject> deleted,
 			List<NotificationObject> notifications) throws Exception {
-		if (EVENT_UPDATED_VAR.equals(event.getEventType())
-				&& VAR_ENTITY_ID.equals(event.getParameter())) {
-			// object is created only when the entity is assigned
+//		if (EVENT_UPDATED_VAR.equals(event.getEventType())
+//				&& VAR_ENTITY_ID.equals(event.getParameter())) {
+		if (EVENT_CREATED.equals(event.getEventType())) {
 			createPOI(event, created);
 		} else if (EVENT_UPDATED_VAR.equals(event.getEventType())) {
 			logger.debug("Updating POIObject: " + event.getDoId());
@@ -179,9 +180,9 @@ public class EventProcessorImpl implements DomainUpdateListener {
 	private void processEvent(DomainEvent event, List<BaseDTObject> created,
 			List<BaseDTObject> updated, List<BaseDTObject> deleted,
 			List<NotificationObject> notifications) throws Exception {
-		if (EVENT_UPDATED_VAR.equals(event.getEventType())
-				&& VAR_ENTITY_ID.equals(event.getParameter())) {
-			// object is created only when the entity is assigned
+//		if (EVENT_UPDATED_VAR.equals(event.getEventType())
+//				&& VAR_ENTITY_ID.equals(event.getParameter())) {
+		if (EVENT_CREATED.equals(event.getEventType())) {
 			createEvent(event, created);
 		} else if (EVENT_UPDATED_VAR.equals(event.getEventType())) {
 			logger.debug("Updating UserEventObject: " + event.getDoId());
@@ -209,9 +210,9 @@ public class EventProcessorImpl implements DomainUpdateListener {
 	private void processStory(DomainEvent event, List<BaseDTObject> created,
 			List<BaseDTObject> updated, List<BaseDTObject> deleted,
 			List<NotificationObject> notifications) throws Exception {
-		if (EVENT_UPDATED_VAR.equals(event.getEventType())
-				&& VAR_ENTITY_ID.equals(event.getParameter())) {
-			// object is created only when the entity is assigned
+//		if (EVENT_UPDATED_VAR.equals(event.getEventType())
+//				&& VAR_ENTITY_ID.equals(event.getParameter())) {
+		if (EVENT_CREATED.equals(event.getEventType())) {
 			createStory(event, created);
 		} else if (EVENT_UPDATED_VAR.equals(event.getEventType())) {
 			logger.debug("Updating UserStoryObject: " + event.getDoId());
