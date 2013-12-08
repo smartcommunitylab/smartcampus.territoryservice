@@ -15,7 +15,6 @@
  ******************************************************************************/
 package eu.trentorise.smartcampus.controller;
 
-import it.sayservice.platform.client.DomainEngineClient;
 import it.sayservice.platform.client.DomainObject;
 import it.sayservice.platform.core.common.util.ServiceUtil;
 
@@ -24,7 +23,6 @@ import java.util.Map;
 
 import javax.servlet.http.HttpServletRequest;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
@@ -42,17 +40,13 @@ import eu.trentorise.smartcampus.processor.EventProcessorImpl;
 @Controller
 public class ObjectController extends AbstractObjectController {
 
-	@Autowired
-	private DomainEngineClient domainEngineClient;
-
-	// @Autowired
-	// private SemanticClient semanticClient;
-
 	@RequestMapping(value = "/objects/{id}/rate", method = RequestMethod.PUT)
 	public ResponseEntity<Object> rate(HttpServletRequest request,
 			@RequestParam String rating, @PathVariable String id) {
 		try {
 			BaseDTObject obj = (BaseDTObject) storage.getObjectById(id);
+			obj.alignDO(domainEngineClient, storage);
+			
 			Map<String, Object> parameters = new HashMap<String, Object>();
 			parameters.put("user", getUserId());
 			Integer iRating = Integer.parseInt(rating);
@@ -63,10 +57,10 @@ public class ObjectController extends AbstractObjectController {
 			Object o = ServiceUtil
 					.deserializeObject((byte[]) domainEngineClient
 							.invokeDomainOperationSync("rate",
-									obj.getDomainType(), obj.getDomainId(),
+									obj.getDomainType(), obj.alignedDomainId(domainEngineClient),
 									parameters, null));
 			String oString = domainEngineClient.searchDomainObject(
-					obj.getDomainType(), obj.getDomainId(), null);
+					obj.getDomainType(), obj.alignedDomainId(domainEngineClient), null);
 			DomainObject dObj = new DomainObject(oString);
 			if (obj instanceof EventObject)
 				obj = EventProcessorImpl.convertEventObject(dObj, storage);
@@ -100,14 +94,16 @@ public class ObjectController extends AbstractObjectController {
 			HttpServletRequest request, String id, String operation) {
 		try {
 			BaseDTObject obj = (BaseDTObject) storage.getObjectById(id);
+			obj.alignDO(domainEngineClient, storage);
+
 			Map<String, Object> parameters = new HashMap<String, Object>();
 			String userId = getUserId();
 			parameters.put("user", userId);
 			domainEngineClient.invokeDomainOperation(operation,
-					obj.getDomainType(), obj.getDomainId(), parameters, null,
+					obj.getDomainType(), obj.alignedDomainId(domainEngineClient), parameters, null,
 					null);
 			String oString = domainEngineClient.searchDomainObject(
-					obj.getDomainType(), obj.getDomainId(), null);
+					obj.getDomainType(), obj.alignedDomainId(domainEngineClient), null);
 			DomainObject dObj = new DomainObject(oString);
 			if (obj instanceof EventObject) {
 				obj = EventProcessorImpl.convertEventObject(dObj, storage);
@@ -132,16 +128,18 @@ public class ObjectController extends AbstractObjectController {
 	public ResponseEntity<Object> unfollow(@PathVariable String id) {
 		try {
 			BaseDTObject obj = (BaseDTObject) storage.getObjectById(id);
+			obj.alignDO(domainEngineClient, storage);
+
 			String operation = "unfollow";
 			String user = getUserId();
 
 			Map<String, Object> parameters = new HashMap<String, Object>();
 			parameters.put("user", user);
 			domainEngineClient.invokeDomainOperation(operation,
-					obj.getDomainType(), obj.getDomainId(), parameters, null,
+					obj.getDomainType(), obj.alignedDomainId(domainEngineClient), parameters, null,
 					null);
 			String oString = domainEngineClient.searchDomainObject(
-					obj.getDomainType(), obj.getDomainId(), null);
+					obj.getDomainType(), obj.alignedDomainId(domainEngineClient), null);
 			DomainObject dObj = new DomainObject(oString);
 			if (obj instanceof EventObject)
 				obj = EventProcessorImpl.convertEventObject(dObj, storage);
@@ -164,16 +162,19 @@ public class ObjectController extends AbstractObjectController {
 	public ResponseEntity<Object> follow(@PathVariable String id) {
 		try {
 			BaseDTObject obj = (BaseDTObject) storage.getObjectById(id);
-			String userId = getUserId();
+			obj.alignDO(domainEngineClient, storage);
+
 			String operation = "follow";
+			String userId = getUserId();
+			
 			Map<String, Object> parameters = new HashMap<String, Object>();
 			parameters.put("user", userId);
 			parameters.put("topic", userId);
 			domainEngineClient.invokeDomainOperation(operation,
-					obj.getDomainType(), obj.getDomainId(), parameters, null,
+					obj.getDomainType(), obj.alignedDomainId(domainEngineClient), parameters, null,
 					null);
 			String oString = domainEngineClient.searchDomainObject(
-					obj.getDomainType(), obj.getDomainId(), null);
+					obj.getDomainType(), obj.alignedDomainId(domainEngineClient), null);
 			DomainObject dObj = new DomainObject(oString);
 			if (obj instanceof EventObject)
 				obj = EventProcessorImpl.convertEventObject(dObj, storage);

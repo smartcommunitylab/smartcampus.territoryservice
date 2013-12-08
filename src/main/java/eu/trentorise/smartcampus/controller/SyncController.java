@@ -25,7 +25,6 @@ import java.util.Map;
 
 import javax.servlet.http.HttpServletRequest;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
@@ -41,13 +40,9 @@ import eu.trentorise.smartcampus.presentation.common.util.Util;
 import eu.trentorise.smartcampus.presentation.data.BasicObject;
 import eu.trentorise.smartcampus.presentation.data.SyncData;
 import eu.trentorise.smartcampus.presentation.data.SyncDataRequest;
-import eu.trentorise.smartcampus.presentation.storage.sync.BasicObjectSyncStorage;
 
 @Controller
 public class SyncController extends AbstractObjectController {
-
-	@Autowired
-	private BasicObjectSyncStorage storage;
 
 	@RequestMapping(method = RequestMethod.POST, value = "/sync")
 	public ResponseEntity<SyncData> synchronize(HttpServletRequest request, @RequestParam long since, @RequestBody Map<String,Object> obj) throws Exception{

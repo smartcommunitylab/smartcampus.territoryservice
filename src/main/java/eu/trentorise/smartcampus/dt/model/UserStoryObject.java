@@ -15,6 +15,16 @@
  ******************************************************************************/
 package eu.trentorise.smartcampus.dt.model;
 
+import java.util.HashMap;
+import java.util.Map;
+
+import it.sayservice.platform.client.DomainEngineClient;
+import it.sayservice.platform.client.InvocationException;
+import eu.trentorise.smartcampus.data.GeoTimeObjectSyncStorage;
+import eu.trentorise.smartcampus.presentation.common.exception.DataException;
+import eu.trentorise.smartcampus.presentation.common.exception.NotFoundException;
+import eu.trentorise.smartcampus.presentation.common.util.Util;
+
 
 
 public class UserStoryObject extends StoryObject {
@@ -40,4 +50,18 @@ public class UserStoryObject extends StoryObject {
 		return result;
 	}
 
+	@Override
+	public void createDO(DomainEngineClient client, GeoTimeObjectSyncStorage storage) throws NotFoundException, DataException, InvocationException {
+		Map<String,Object> parameters = new HashMap<String, Object>();
+		parameters.put("creator", getCreatorId());
+		parameters.put("data", Util.convert(toGenericStory(), Map.class));
+		parameters.put("communityData",  domainCommunityData());
+		client.invokeDomainOperation(
+				"createStory", 
+				"eu.trentorise.smartcampus.domain.discovertrento.StoryFactory", 
+				"eu.trentorise.smartcampus.domain.discovertrento.StoryFactory.0", 
+				parameters, null, null);
+	}
+
+	
 }

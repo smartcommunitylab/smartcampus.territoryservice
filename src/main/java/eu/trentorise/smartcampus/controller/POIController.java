@@ -16,7 +16,6 @@
 package eu.trentorise.smartcampus.controller;
 
 
-import it.sayservice.platform.client.DomainEngineClient;
 import it.sayservice.platform.client.DomainObject;
 
 import java.util.HashMap;
@@ -26,7 +25,6 @@ import java.util.Map;
 import javax.servlet.http.HttpServletRequest;
 
 import org.bson.types.ObjectId;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
@@ -47,9 +45,6 @@ import eu.trentorise.smartcampus.processor.EventProcessorImpl;
 @Controller
 public class POIController extends AbstractObjectController {
 
-	@Autowired
-	private DomainEngineClient domainEngineClient; 
-	
 	@RequestMapping(method = RequestMethod.POST, value="/pois")
 	public ResponseEntity<UserPOIObject> createPOI(HttpServletRequest request, @RequestBody Map<String,Object> objMap) {
 		UserPOIObject obj = Util.convert(objMap, UserPOIObject.class);
@@ -68,17 +63,7 @@ public class POIController extends AbstractObjectController {
 			obj.setDomainType("eu.trentorise.smartcampus.domain.discovertrento.UserPOIObject");
 			tmp =  Util.convert(obj, POIObject.class);
 			storage.storeObject(tmp);
-			
-			Map<String,Object> parameters = new HashMap<String, Object>();
-			parameters.put("creator", getUserId());
-			parameters.put("data", Util.convert(obj.toGenericPOI(), Map.class));
-			parameters.put("communityData",  obj.domainCommunityData());
-			domainEngineClient.invokeDomainOperation(
-					"createPOI", 
-					"eu.trentorise.smartcampus.domain.discovertrento.UserPOIFactory", 
-					"eu.trentorise.smartcampus.domain.discovertrento.UserPOIFactory.0", 
-					parameters, null, null);
-			
+			obj.createDO(domainEngineClient, storage);
 		} catch (Exception e) {
 			logger.error("Failed to create userPOI: "+e.getMessage());
 			e.printStackTrace();
@@ -104,6 +89,15 @@ public class POIController extends AbstractObjectController {
 
 	@RequestMapping(method = RequestMethod.PUT, value="/pois/{id:.+}")
 	public ResponseEntity<POIObject> updatePOI(HttpServletRequest request, @RequestBody Map<String,Object> objMap, @PathVariable String id) {
+		// align with domain
+		try {
+			POIObject poi = storage.getObjectById(id, POIObject.class);
+			poi.alignDO(domainEngineClient, storage);
+		} catch (Exception e) {
+			e.printStackTrace();
+			return new ResponseEntity<POIObject>(HttpStatus.METHOD_FAILURE);
+		}
+		
 		UserPOIObject obj = Util.convert(objMap, UserPOIObject.class);
 		try {
 			validatePOI(obj);
@@ -129,21 +123,13 @@ public class POIController extends AbstractObjectController {
 				parameters.put("newCommunityData",  obj.domainCommunityData());
 			}
 		
-			if (obj.getDomainId() ==  null) {
-				DomainObject dobj = upgradeDO(obj, domainEngineClient);
-				if (dobj != null) {
-					POIObject newObj = EventProcessorImpl.convertPOIObject(dobj);
-					obj.setEntityId(newObj.getEntityId());
-				}
-			}
-
 			domainEngineClient.invokeDomainOperation(
 					operation, 
 					obj.getDomainType(), 
-					obj.getDomainId(),
+					obj.alignedDomainId(domainEngineClient),
 					parameters, null, null); 
 			
-			String oString = domainEngineClient.searchDomainObject(obj.getDomainType(), obj.getDomainId(), null);
+			String oString = domainEngineClient.searchDomainObject(obj.getDomainType(), obj.alignedDomainId(domainEngineClient), null);
 			DomainObject dObj = new DomainObject(oString);
 			POIObject uObj = EventProcessorImpl.convertPOIObject(dObj);
 //			storage.storeObject(uObj);
@@ -177,14 +163,11 @@ public class POIController extends AbstractObjectController {
 			return new ResponseEntity<UserPOIObject>(HttpStatus.METHOD_FAILURE);
 		}
 		try {
-			if (poi.getDomainId() == null) {
-				upgradeDO(poi, domainEngineClient);
-			}
-			if (poi.getDomainId() != null) {
+			if (poi.alignedDomainId(domainEngineClient) != null) {
 				domainEngineClient.invokeDomainOperation(
 						"deletePOI", 
 						poi.getDomainType(), 
-						poi.getDomainId(),
+						poi.alignedDomainId(domainEngineClient),
 						new HashMap<String, Object>(0), null, null); 
 				
 				storage.deleteObject(poi);

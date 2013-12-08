@@ -16,7 +16,6 @@
 package eu.trentorise.smartcampus.controller;
 
 import it.sayservice.platform.client.DomainEngineClient;
-import it.sayservice.platform.client.DomainObject;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -45,6 +44,8 @@ public class AbstractObjectController extends SCController {
 
 	@Autowired
 	protected GeoTimeObjectSyncStorage storage;
+	@Autowired
+	protected DomainEngineClient domainEngineClient; 
 
 	protected Log logger = LogFactory.getLog(this.getClass());
 
@@ -54,20 +55,20 @@ public class AbstractObjectController extends SCController {
 	protected AuthServices getAuthServices() {
 		return services;
 	}
-
-	protected DomainObject upgradeDO(BaseDTObject obj, DomainEngineClient client) throws Exception {
-		if (obj.getDomainId() ==  null) {
-			Map<String,Object> params = new HashMap<String, Object>();
-			params.put("id", obj.getId());
-			List<String> list = client.searchDomainObjects(obj.getDomainType(), params, null);
-			if (list != null && !list.isEmpty()) {
-				DomainObject dobj = new DomainObject(list.get(0));
-				obj.setDomainId(dobj.getId());
-				return dobj;
-			}
-		}
-		return null;
-	}
+	
+//	protected DomainObject upgradeDO(BaseDTObject obj, DomainEngineClient client) throws Exception {
+//		if (obj.getDomainId() ==  null) {
+//			Map<String,Object> params = new HashMap<String, Object>();
+//			params.put("id", obj.getId());
+//			List<String> list = client.searchDomainObjects(obj.getDomainType(), params, null);
+//			if (list != null && !list.isEmpty()) {
+//				DomainObject dobj = new DomainObject(list.get(0));
+//				obj.setDomainId(dobj.getId());
+//				return dobj;
+//			}
+//		}
+//		return null;
+//	}
 	
 	public <T extends BaseDTObject> List<T> getAllObject(HttpServletRequest request, Class<T> cls) throws Exception {
 		String userId = getUserId();

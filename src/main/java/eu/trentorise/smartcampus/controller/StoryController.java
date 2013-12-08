@@ -16,7 +16,6 @@
 package eu.trentorise.smartcampus.controller;
 
 
-import it.sayservice.platform.client.DomainEngineClient;
 import it.sayservice.platform.client.DomainObject;
 
 import java.util.HashMap;
@@ -26,7 +25,6 @@ import java.util.Map;
 import javax.servlet.http.HttpServletRequest;
 
 import org.bson.types.ObjectId;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
@@ -47,29 +45,18 @@ import eu.trentorise.smartcampus.processor.EventProcessorImpl;
 @Controller
 public class StoryController extends AbstractObjectController {
 
-	@Autowired
-	private DomainEngineClient domainEngineClient; 
-	
 	@RequestMapping(method = RequestMethod.POST, value="/stories")
 	public ResponseEntity<UserStoryObject> createStory(HttpServletRequest request, @RequestBody Map<String,Object> objMap) {
 		UserStoryObject obj = Util.convert(objMap, UserStoryObject.class);
 		StoryObject tmp = null;
 		obj.setId(new ObjectId().toString());
-		Map<String,Object> parameters = new HashMap<String, Object>();
 		try {
 			obj.setCreatorId(getUserId());
 			obj.setDomainType("eu.trentorise.smartcampus.domain.discovertrento.StoryObject");
 			tmp = Util.convert(obj, StoryObject.class);
 			storage.storeObject(tmp);
 			
-			parameters.put("creator", getUserId());
-			parameters.put("data", Util.convert(obj.toGenericStory(), Map.class));
-			parameters.put("communityData",  obj.domainCommunityData());
-			domainEngineClient.invokeDomainOperation(
-					"createStory", 
-					"eu.trentorise.smartcampus.domain.discovertrento.StoryFactory", 
-					"eu.trentorise.smartcampus.domain.discovertrento.StoryFactory.0", 
-					parameters, null, null);
+			obj.createDO(domainEngineClient, storage);
 			
 		} catch (Exception e) {
 			logger.error("Failed to create userStory: "+e.getMessage());
@@ -87,6 +74,14 @@ public class StoryController extends AbstractObjectController {
 
 	@RequestMapping(method = RequestMethod.PUT, value="/stories/{id:.+}")
 	public ResponseEntity<StoryObject> updateStory(HttpServletRequest request, @RequestBody Map<String,Object> objMap, @PathVariable String id) {
+		try {
+			StoryObject story = storage.getObjectById(id, StoryObject.class);
+			story.alignDO(domainEngineClient, storage);
+		} catch (Exception e) {
+			e.printStackTrace();
+			return new ResponseEntity<StoryObject>(HttpStatus.METHOD_FAILURE);
+		}
+
 		UserStoryObject obj = Util.convert(objMap, UserStoryObject.class);
 		try {
 			Map<String,Object> parameters = new HashMap<String, Object>();
@@ -104,21 +99,13 @@ public class StoryController extends AbstractObjectController {
 				parameters.put("newCommunityData",  obj.domainCommunityData());
 			}
 			
-			if (obj.getDomainId() ==  null) {
-				DomainObject dobj = upgradeDO(obj, domainEngineClient);
-				if (dobj != null) {
-					StoryObject newObj = EventProcessorImpl.convertStoryObject(dobj, storage);
-					obj.setEntityId(newObj.getEntityId());
-				}
-			}
-
 			domainEngineClient.invokeDomainOperation(
 					operation, 
 					obj.getDomainType(), 
-					obj.getDomainId(),
+					obj.alignedDomainId(domainEngineClient),
 					parameters, null, null); 
 			
-			String oString = domainEngineClient.searchDomainObject(obj.getDomainType(), obj.getDomainId(), null);
+			String oString = domainEngineClient.searchDomainObject(obj.getDomainType(), obj.alignedDomainId(domainEngineClient), null);
 			DomainObject dObj = new DomainObject(oString);
 			StoryObject uObj = EventProcessorImpl.convertStoryObject(dObj, storage);
 //			storage.storeObject(uObj);
@@ -155,14 +142,11 @@ public class StoryController extends AbstractObjectController {
 		
 		Map<String,Object> parameters = new HashMap<String, Object>(0);
 		try {
-			if (story.getDomainId() == null) {
-				upgradeDO(story, domainEngineClient);
-			}
-			if (story.getDomainId() != null) {
+			if (story.alignedDomainId(domainEngineClient) != null) {
 				domainEngineClient.invokeDomainOperation(
 						"deleteStory", 
 						"eu.trentorise.smartcampus.domain.discovertrento.StoryObject", 
-						story.getDomainId(),
+						story.alignedDomainId(domainEngineClient),
 						parameters, null, null); 
 				storage.deleteObject(story);
 			}

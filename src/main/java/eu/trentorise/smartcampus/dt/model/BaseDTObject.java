@@ -15,6 +15,10 @@
  ******************************************************************************/
 package eu.trentorise.smartcampus.dt.model;
 
+import it.sayservice.platform.client.DomainEngineClient;
+import it.sayservice.platform.client.DomainObject;
+import it.sayservice.platform.client.InvocationException;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -24,6 +28,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import javax.mail.MethodNotSupportedException;
+
+import eu.trentorise.smartcampus.data.GeoTimeObjectSyncStorage;
+import eu.trentorise.smartcampus.presentation.common.exception.DataException;
+import eu.trentorise.smartcampus.presentation.common.exception.NotFoundException;
 import eu.trentorise.smartcampus.presentation.common.util.Util;
 import eu.trentorise.smartcampus.presentation.data.BasicObject;
 
@@ -235,6 +244,60 @@ public class BaseDTObject extends BasicObject {
 			res.add("toTime");
 		return res;
 	}
-	
-	
+
+	/**
+	 * Check the domain: if the object exists, align and return the domainId.
+	 * If the object is not exist in domain, create it.
+	 * @param client
+	 * @param storage
+	 * @return
+	 * @throws Exception
+	 */
+	public void alignDO(DomainEngineClient client, GeoTimeObjectSyncStorage storage) throws Exception {
+		if (domainId ==  null) {
+			Map<String,Object> params = new HashMap<String, Object>();
+			params.put("id", getId());
+			List<String> list = client.searchDomainObjects(getDomainType(), params, null);
+			if (list != null && !list.isEmpty()) {
+				DomainObject dobj = new DomainObject(list.get(0));
+				setDomainId(dobj.getId());
+				storage.storeObject(this);
+			} else {
+				createDO(client, storage);
+			}
+		}
+	}
+
+	/**
+	 * Create object in domain
+	 * @param client
+	 * @param storage
+	 * @throws DataException 
+	 * @throws NotFoundException 
+	 * @throws InvocationException 
+	 * @throws MethodNotSupportedException 
+	 */
+	public void createDO(DomainEngineClient client, GeoTimeObjectSyncStorage storage) throws NotFoundException, DataException, InvocationException, MethodNotSupportedException {
+		throw new MethodNotSupportedException("Cannot create DO of this type");
+	}
+
+	/**
+	 * Read domain ID from the domain if the object is not yet aligned.
+	 * @param client
+	 * @return
+	 * @throws Exception 
+	 */
+	public String alignedDomainId(DomainEngineClient client) throws Exception {
+		if (domainId == null) {
+			Map<String,Object> params = Collections.<String,Object>singletonMap("id", getId());
+			List<String> list = client.searchDomainObjects(getDomainType(), params, null);
+			if (list != null && !list.isEmpty()) {
+				DomainObject dobj = new DomainObject(list.get(0));
+				setDomainId(dobj.getId());
+			} else {
+				throw new NotFoundException("No domain object with id "+getId() +" exists.");
+			}			
+		}
+		return domainId;
+	} 
 }

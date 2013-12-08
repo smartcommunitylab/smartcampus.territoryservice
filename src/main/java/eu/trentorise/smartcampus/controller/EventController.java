@@ -16,7 +16,6 @@
 package eu.trentorise.smartcampus.controller;
 
 
-import it.sayservice.platform.client.DomainEngineClient;
 import it.sayservice.platform.client.DomainObject;
 
 import java.util.HashMap;
@@ -26,7 +25,6 @@ import java.util.Map;
 import javax.servlet.http.HttpServletRequest;
 
 import org.bson.types.ObjectId;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
@@ -47,35 +45,17 @@ import eu.trentorise.smartcampus.processor.EventProcessorImpl;
 @Controller
 public class EventController extends AbstractObjectController {
 
-	@Autowired
-	private DomainEngineClient domainEngineClient; 
-	
 	@RequestMapping(method = RequestMethod.POST, value="/events")
 	public ResponseEntity<UserEventObject> createEvent(HttpServletRequest request, @RequestBody Map<String,Object> objMap) {
 		UserEventObject obj = Util.convert(objMap, UserEventObject.class);
 		EventObject tmp = null;
 		obj.setId(new ObjectId().toString());
-		Map<String,Object> parameters = new HashMap<String, Object>();
 		try {
 			obj.setCreatorId(getUserId());
 			obj.setDomainType("eu.trentorise.smartcampus.domain.discovertrento.UserEventObject");
 			tmp = Util.convert(obj, EventObject.class);
 			storage.storeObject(tmp);
-			
-			parameters.put("creator", getUserId());
-			if (obj.getPoiId() == null) {
-				logger.error("Error creating UserEvent: empty poiId");
-				return new ResponseEntity<UserEventObject>(HttpStatus.METHOD_FAILURE);
-			}
-			POIObject poi = storage.getObjectById(obj.getPoiId(), POIObject.class);
-			parameters.put("data", Util.convert(obj.toGenericEvent(poi), Map.class));
-			parameters.put("communityData",  obj.domainCommunityData());
-			domainEngineClient.invokeDomainOperation(
-					"createEvent", 
-					"eu.trentorise.smartcampus.domain.discovertrento.UserEventFactory", 
-					"eu.trentorise.smartcampus.domain.discovertrento.UserEventFactory.0", 
-					parameters, null, null);
-			
+			obj.createDO(domainEngineClient, storage);
 		} catch (Exception e) {
 			logger.error("Failed to create userEvent: "+e.getMessage());
 			e.printStackTrace();
@@ -92,6 +72,14 @@ public class EventController extends AbstractObjectController {
 
 	@RequestMapping(method = RequestMethod.PUT, value="/events/{id:.+}")
 	public ResponseEntity<EventObject> updateEvent(HttpServletRequest request, @RequestBody Map<String,Object> objMap, @PathVariable String id) {
+		try {
+			EventObject event = storage.getObjectById(id, EventObject.class);
+			event.alignDO(domainEngineClient, storage);
+		} catch (Exception e) {
+			e.printStackTrace();
+			return new ResponseEntity<EventObject>(HttpStatus.METHOD_FAILURE);
+		}
+
 		UserEventObject obj = Util.convert(objMap, UserEventObject.class);
 		try {
 			if (obj.getPoiId() == null) {
@@ -115,21 +103,13 @@ public class EventController extends AbstractObjectController {
 				parameters.put("newCommunityData",  obj.domainCommunityData());
 			}
 			
-			if (obj.getDomainId() ==  null) {
-				DomainObject dobj = upgradeDO(obj, domainEngineClient);
-				if (dobj != null) {
-					EventObject newObj = EventProcessorImpl.convertEventObject(dobj, storage);
-					obj.setEntityId(newObj.getEntityId());
-				}
-			}
-			
 			domainEngineClient.invokeDomainOperation(
 					operation, 
 					obj.getDomainType(), 
-					obj.getDomainId(),
+					obj.alignedDomainId(domainEngineClient),
 					parameters, null, null); 
 			
-			String oString = domainEngineClient.searchDomainObject(obj.getDomainType(), obj.getDomainId(), null);
+			String oString = domainEngineClient.searchDomainObject(obj.getDomainType(), obj.alignedDomainId(domainEngineClient), null);
 			DomainObject dObj = new DomainObject(oString);
 			EventObject uObj = EventProcessorImpl.convertEventObject(dObj, storage);
 //			storage.storeObject(uObj);
@@ -165,15 +145,12 @@ public class EventController extends AbstractObjectController {
 
 
 		try {
-			if (event.getDomainId() == null) {
-				upgradeDO(event, domainEngineClient);
-			}
-			if (event.getDomainId() != null) {
+			if (event.alignedDomainId(domainEngineClient) != null) {
 				Map<String,Object> parameters = new HashMap<String, Object>(0);
 				domainEngineClient.invokeDomainOperation(
 						"deleteEvent", 
 						event.getDomainType(), 
-						event.getDomainId(),
+						event.alignedDomainId(domainEngineClient),
 						parameters, null, null); 
 				storage.deleteObject(event);
 			}

@@ -15,8 +15,18 @@
  ******************************************************************************/
 package eu.trentorise.smartcampus.dt.model;
 
+import it.sayservice.platform.client.DomainEngineClient;
+import it.sayservice.platform.client.InvocationException;
+
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+
+import eu.trentorise.smartcampus.data.GeoTimeObjectSyncStorage;
+import eu.trentorise.smartcampus.presentation.common.exception.DataException;
+import eu.trentorise.smartcampus.presentation.common.exception.NotFoundException;
+import eu.trentorise.smartcampus.presentation.common.util.Util;
 
 
 public class UserEventObject extends EventObject {
@@ -56,5 +66,23 @@ public class UserEventObject extends EventObject {
 		}
 		return result;
 	}
-	
+
+	@Override
+	public void createDO(DomainEngineClient client, GeoTimeObjectSyncStorage storage) throws NotFoundException, DataException, InvocationException {
+		Map<String,Object> parameters = new HashMap<String, Object>();
+		parameters.put("creator", getCreatorId());
+		if (getPoiId() == null) {
+			throw new IllegalArgumentException("Empty POI");
+		}
+		POIObject poi = storage.getObjectById(getPoiId(), POIObject.class);
+		parameters.put("data", Util.convert(toGenericEvent(poi), Map.class));
+		parameters.put("communityData",  domainCommunityData());
+		client.invokeDomainOperation(
+				"createEvent", 
+				"eu.trentorise.smartcampus.domain.discovertrento.UserEventFactory", 
+				"eu.trentorise.smartcampus.domain.discovertrento.UserEventFactory.0", 
+				parameters, null, null);
+	}
+
+
 }
