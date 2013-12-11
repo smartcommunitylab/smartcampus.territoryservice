@@ -24,6 +24,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Component;
 
 import eu.trentorise.smartcampus.dt.model.ModerationItem;
@@ -63,6 +64,10 @@ public class ModerationStorage {
 	}
 	public List<ModerationItem> getByObjectIdAndUser(String objectId, String user) {
 		return mongoTemplate.find(Query.query(Criteria.where("objectId").is(objectId).and("userId").is(user)), ModerationItem.class);
+	}
+
+	public void updateReferenceValue(String objectId, Map<String, Object> oldValue) {
+		mongoTemplate.updateMulti(Query.query(Criteria.where("objectId").is(objectId)), Update.update("oldValue", oldValue), ModerationItem.class);
 	}
 
 }

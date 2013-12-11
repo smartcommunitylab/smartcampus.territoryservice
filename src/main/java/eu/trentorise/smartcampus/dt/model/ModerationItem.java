@@ -25,7 +25,7 @@ import java.util.Map;
  * @author raman
  *
  */
-public class ModerationItem {
+public class ModerationItem implements Comparable<ModerationItem> {
 
 	private String id;
 	private String type;
@@ -34,10 +34,17 @@ public class ModerationItem {
 	private Map<String,Object> oldValue;
 	private Map<String,Object> newValue;
 	private String objectType;
+	private Long timestamp;
 	
 	public ModerationItem() {
 		super();
 	}
+	
+	@Override
+	public int compareTo(ModerationItem o) {
+		return timestamp.compareTo(o.getTimestamp());
+	}
+
 
 	public ModerationItem(String objectId, String userId, String type, Map<String, Object> oldValue, Map<String, Object> newValue, String objectType) {
 		super();
@@ -47,6 +54,7 @@ public class ModerationItem {
 		this.oldValue = oldValue;
 		this.newValue = newValue;
 		this.objectType = objectType;
+		this.timestamp = System.currentTimeMillis();
 	}
 
 	/**
@@ -135,6 +143,12 @@ public class ModerationItem {
 	public void setObjectType(String objectType) {
 		this.objectType = objectType;
 	}
-	
-	
+
+	public long getTimestamp() {
+		return timestamp;
+	}
+
+	public void setTimestamp(long timestamp) {
+		this.timestamp = timestamp;
+	}
 }

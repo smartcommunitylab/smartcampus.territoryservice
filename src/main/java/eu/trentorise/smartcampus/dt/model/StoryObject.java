@@ -106,18 +106,17 @@ public class StoryObject extends BaseDTObject {
 		if (!toUpdate && !toModerate) return this;
 		Map<String,Object> parameters = new HashMap<String, Object>();
 		String operation = null;
-		// TODO IN THIS WAY CAN MODIFY ONLY OWN OBJECTS, OTHERWISE ONLY TAGS IN COMMUNITY DATA
+		// TODO IN THIS WAY CAN MODIFY ONLY OWN OBJECTS, OTHERWISE EXCEPTION
 		if (!userId.equals(getCreatorId())) {
-			operation = "updateCommunityData";
-			if (getCommunityData() != null) {
-				getCommunityData().setRating(null);
-			}
-			parameters.put("newCommunityData",  domainCommunityData());
-			if (toModerate) {
-				Map<String,Object> oldData = old.domainCommunityData();
-				Map<String,Object> commData = domainCommunityData();
-				moderator.moderateCommunityData(getId(), oldData, commData, userId);
-			}
+			throw new SecurityException();
+//			operation = "updateCommunityData";
+//			if (getCommunityData() != null) {
+//				getCommunityData().setRating(null);
+//			}
+//			parameters.put("newCommunityData",  domainCommunityData());
+//			if (toModerate) {
+//				moderator.moderateCommunityData(getId(), old, this, userId);
+//			}
 		} else {
 			operation = "updateStory";
 			parameters.put("newData", Util.convert(toGenericStory(), Map.class)); 

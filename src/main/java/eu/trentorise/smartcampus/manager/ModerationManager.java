@@ -22,6 +22,10 @@ import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.commons.logging.Log;
@@ -35,22 +39,21 @@ import org.springframework.stereotype.Component;
 import eu.trentorise.smartcampus.data.GeoTimeObjectSyncStorage;
 import eu.trentorise.smartcampus.data.ModerationStorage;
 import eu.trentorise.smartcampus.dt.model.BaseDTObject;
-import eu.trentorise.smartcampus.dt.model.CommunityData;
 import eu.trentorise.smartcampus.dt.model.ModerationItem;
 import eu.trentorise.smartcampus.network.JsonUtils;
 
 /**
+ * Manager of data moderation activities. Moderation is parameteric, i.e.,
+ * one can do pre- or post-moderation or disable it.
  * @author raman
- *
  */
 @Component
 public class ModerationManager {
 
 	public enum MODERATION_MODE {DISABLED, PRE, POST};
-	public enum STATE {A,D};
+	public enum STATE {A, D, W};
 	
 	private static final String TYPE_OBJECT = "object";
-	private static final String TYPE_COMM_DATA = "comm_data";
 	@Autowired
 	protected GeoTimeObjectSyncStorage dataStorage;
 	@Autowired
@@ -64,9 +67,27 @@ public class ModerationManager {
 	private Resource moderationFile;
 	private Log logger = LogFactory.getLog(getClass());
 
+	/**
+	 * Request object moderation given the old value, new value, and the user. 
+	 * @param oldObj
+	 * @param newObj
+	 * @param user
+	 */
 	@SuppressWarnings("unchecked")
 	public void moderateObject(BaseDTObject oldObj, BaseDTObject newObj, String user) {
-		Map<String,Object> oldValue = oldObj !=null ? JsonUtils.convert(oldObj, Map.class) : null;
+		Map<String,Object> oldValue = null;
+		// if there are previous objects
+		if (oldObj != null) {
+			// use the last valid value from the currently moderated ones
+			List<ModerationItem> list = storage.getByObjectId(newObj.getId());
+			if (list != null && !list.isEmpty()) {
+				Collections.sort(list);
+				oldValue = list.get(0).getOldValue();
+			// otherwise use the input value 	
+			} else {
+				oldValue = JsonUtils.convert(oldObj, Map.class);
+			}
+		}
 		Map<String,Object> newValue = JsonUtils.convert(newObj, Map.class); 
 			ModerationItem item = storage.storeItem(newObj.getId(), user, TYPE_OBJECT, oldValue, newValue, newObj.getClass().getCanonicalName());
 		sendModerationRequest(item);
@@ -94,9 +115,15 @@ public class ModerationManager {
 	 * 
 	 */
 	private void checkFile() throws IOException {
+		if (MODERATION_MODE.DISABLED.equals(getModerationMode())) return;
+		
 		if (moderationFile == null) return;
 		
 		BufferedReader bin = null;
+		Map<String,List<ModerationItem>> itemGroups = new HashMap<String, List<ModerationItem>>();
+		Map<String,STATE> states = new HashMap<String, ModerationManager.STATE>();
+		Map<String,String> notes = new HashMap<String, String>();
+		
 		try {
 			bin = new BufferedReader(new InputStreamReader(moderationFile.getInputStream()));
 			String line = null;
@@ -107,32 +134,118 @@ public class ModerationManager {
 					continue;
 				}
 				String[] arr = line.split(",");
+				STATE state = STATE.valueOf(arr[1]);
+
+				String note = arr.length > 2 ? arr[2] : null;
+				
 				ModerationItem item = storage.getItemById(arr[0]);
-				if (STATE.valueOf(arr[1]).equals(STATE.D)) rejectUpdate(item);
-				else confirmUpdate(item);
+				if (item == null) continue;
+				
+				List<ModerationItem> items = itemGroups.get(item.getObjectId());
+				if (items == null) {
+					items = new ArrayList<ModerationItem>();
+					itemGroups.put(item.getObjectId(), items);
+				}
+				items.add(item); 
+				notes.put(arr[0], note);
+				states.put(arr[0], state);
 			}
+			
+			for (String objectId : itemGroups.keySet()) {
+				checkObject(itemGroups.get(objectId), states, notes);
+			}
+			
 		} finally {
 			if (bin != null) bin.close();
 		}
 	}
 
 	/**
-	 * @param item
+	 * Check the object modifications, given the modification states, and notes.
+	 * 
+	 * @param list
+	 * @param states
+	 * @param notes
 	 */
-	private void rejectUpdate(ModerationItem item) {
+	private void checkObject(List<ModerationItem> list, Map<String, STATE> states, Map<String, String> notes) {
+		Collections.sort(list);
+		ModerationItem 
+			firstRejected = null, // first modification rejected after the object approval
+			lastAccepted = null; // last approved modification of the whole object 
+		
+		int firstPending = list.size();
+		
+		for (int i = list.size() - 1; i >= 0; i--) {
+			ModerationItem item = list.get(i);
+			// look for first moderated: no accepted before
+			if (lastAccepted == null && states.get(item.getId()).equals(STATE.W)) {
+				firstPending = i;
+			}
+			if (lastAccepted == null && states.get(item.getId()).equals(STATE.D)) {
+				firstRejected = item;
+			}
+			
+			if (lastAccepted == null && states.get(item.getId()).equals(STATE.A)) {
+				lastAccepted = item;
+			}
+		}
+		
+		// in case of pre-moderation we should commit the correct changes
+		if (getModerationMode().equals(MODERATION_MODE.PRE)) {
+			// commit last approved full change
+			if (lastAccepted != null) {
+				confirmUpdate(lastAccepted, notes.get(lastAccepted.getId()));
+				storage.updateReferenceValue(lastAccepted.getObjectId(),lastAccepted.getOldValue());
+			}
+			// if no approvals and no pending decisions, revert the first rejection in case that one is creation
+			if (lastAccepted == null && firstRejected != null && firstPending < list.size()) {
+				rejectUpdate(firstRejected, notes.get(firstRejected.getId()), true);
+			}
+		}
+		// in case of post moderation when the correct value were overwritten, we should rollback
+		if (getModerationMode().equals(MODERATION_MODE.POST) && firstRejected != null) {
+			// commit last approved full change
+			if (lastAccepted != null) {
+				confirmUpdate(lastAccepted, notes.get(lastAccepted.getId()));
+				storage.updateReferenceValue(lastAccepted.getObjectId(),lastAccepted.getOldValue());
+			}
+			// if no approvals, revert the first rejection to origin
+			// or delete if there are no pending and no previous
+			if (lastAccepted == null && firstRejected != null) {
+				rejectUpdate(firstRejected, notes.get(firstRejected.getId()), firstPending >= list.size() && firstRejected.getOldValue() == null);
+			}
+		}
+
+		int lastAcceptedPos = list.indexOf(lastAccepted);
+		for (int i = 0; i < list.size(); i++) {
+			if (i < lastAcceptedPos || !STATE.W.equals(states.get(list.get(i).getId()))) {
+				storage.removeItem(list.get(i));
+			}
+		}
+		
+		if (getModerationMode().equals(MODERATION_MODE.POST)) {
+			// TODO notify the users
+			// notify all the rejected updates from the lastAccepted onwards
+		}
+	}
+
+	/**
+	 * Reject update reverting to previous version or removing the object if there wer no approved versions
+	 * @param item
+	 * @param note 
+	 * @param toDelete
+	 */
+	private void rejectUpdate(ModerationItem item, String note, boolean toDelete) {
 		if (item != null) {
 			try {
-				if (TYPE_OBJECT.equals(item.getType())) {
-					try {
-						BaseDTObject obj = (BaseDTObject)dataStorage.getObjectById(item.getObjectId());
-						if (item.getOldValue() == null || item.getOldValue().isEmpty()) {
-							obj.deleteDO(domainEngineClient, dataStorage);
-						}
-					} catch (Exception e) {
-						logger.warn("Object "+item.getObjectId() +" not found: "+e.getMessage());
+				if (toDelete) {
+					BaseDTObject obj = (BaseDTObject)dataStorage.getObjectById(item.getObjectId());
+					if (item.getOldValue() == null || item.getOldValue().isEmpty()) {
+						obj.deleteDO(domainEngineClient, dataStorage);
 					}
+				} else {
+					callConfirm(item.getObjectId(), item.getObjectType(), item.getOldValue(), item.getUserId());
 				}
-				storage.removeItem(item);
 			} catch (Exception e) {
 				e.printStackTrace();
 				logger.warn("Failed to confirm object "+item.getObjectId()+": "+e.getMessage());
@@ -141,35 +254,28 @@ public class ModerationManager {
 		}
 	}
 
-	@SuppressWarnings("unchecked")
-	private void confirmUpdate(ModerationItem item) {
+	/**
+	 * Confirm the change storing the modification in the domain
+	 * @param item
+	 * @param note
+	 */
+	private void confirmUpdate(ModerationItem item, String note) {
 		if (item != null) {
-			try {
-				BaseDTObject obj = null;
-				if (TYPE_COMM_DATA.equals(item.getType())) {
-					try {
-						obj = (BaseDTObject)dataStorage.getObjectById(item.getObjectId());
-					} catch (Exception e) {
-						logger.warn("Object "+item.getObjectId() +" not found: "+e.getMessage());
-					}
-					if (obj != null) {
-						Map<String,Object> map = JsonUtils.convert(obj.getCommunityData(), Map.class);
-						map.putAll(item.getNewValue());
-						obj.setCommunityData(JsonUtils.convert(map, CommunityData.class));
-					}
-				} else {
-					Class<?> cls = Thread.currentThread().getContextClassLoader().loadClass(item.getObjectType());
-					obj = (BaseDTObject)JsonUtils.convert(item.getNewValue(), cls);
-				}
-				if (obj != null) {
-					obj.confirmDO(item.getUserId(), domainEngineClient, dataStorage, this);
-				}
-				storage.removeItem(item);
-			} catch (Exception e) {
-				e.printStackTrace();
-				logger.warn("Failed to confirm object "+item.getObjectId()+": "+e.getMessage());
-				return;
+			callConfirm(item.getObjectId(), item.getObjectType(),item.getNewValue(),item.getUserId());
+		}
+	}
+
+	private void callConfirm(String objectId, String objectType, Map<String,Object> data, String userId) {
+		try {
+			Class<?> cls = Thread.currentThread().getContextClassLoader().loadClass(objectType);
+			BaseDTObject obj = (BaseDTObject)JsonUtils.convert(data, cls);
+			if (obj != null) {
+				obj.confirmDO(userId, domainEngineClient, dataStorage, this);
 			}
+		} catch (Exception e) {
+			e.printStackTrace();
+			logger.warn("Failed to confirm object "+objectId+": "+e.getMessage());
+			return;
 		}
 	}
 
@@ -177,14 +283,4 @@ public class ModerationManager {
 		return mode == null || mode.isEmpty() ? MODERATION_MODE.DISABLED : MODERATION_MODE.valueOf(mode);
 	}
 
-	/**
-	 * @param oldData
-	 * @param commData
-	 * @param userId
-	 */
-	public void moderateCommunityData(String id, Map<String, Object> oldData, Map<String, Object> newData, String userId) {
-		ModerationItem item = storage.storeItem(id, userId, TYPE_COMM_DATA, oldData, newData, CommunityData.class.getCanonicalName());
-		sendModerationRequest(item);
-		
-	}
 }

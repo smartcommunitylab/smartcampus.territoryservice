@@ -80,18 +80,17 @@ public class POIObject extends BaseDTObject {
 		if (!toUpdate && !toModerate) return this;
 		Map<String,Object> parameters = new HashMap<String, Object>(1);
 		String operation = null;
-		// TODO IN THIS WAY CAN MODIFY ONLY OWN OBJECTS, OTHERWISE ONLY TAGS IN COMMUNITY DATA
+		// TODO IN THIS WAY CAN MODIFY ONLY OWN OBJECTS, OTHERWISE EXCEPTION
 		if (!userId.equals(getCreatorId())) {
-			operation = "updateCommunityData";
-			if (getCommunityData() != null) {
-				getCommunityData().setRating(null);
-			}
-			if (toModerate) {
-				Map<String,Object> oldData = old.domainCommunityData();
-				Map<String,Object> commData = domainCommunityData();
-				moderator.moderateCommunityData(getId(), oldData, commData, userId);
-			}
-			parameters.put("newCommunityData",  domainCommunityData());
+			throw new SecurityException();
+//			operation = "updateCommunityData";
+//			if (getCommunityData() != null) {
+//				getCommunityData().setRating(null);
+//			}
+//			if (toModerate) {
+//				moderator.moderateCommunityData(getId(), old, this, userId);
+//			}
+//			parameters.put("newCommunityData",  domainCommunityData());
 		} else {
 			operation = "updatePOI";
 			parameters.put("newData", Util.convert(toGenericPOI(), Map.class)); 

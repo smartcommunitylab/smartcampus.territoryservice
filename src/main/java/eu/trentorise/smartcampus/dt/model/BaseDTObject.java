@@ -356,7 +356,7 @@ public class BaseDTObject extends BasicObject {
 		}
 		
 		store(
-				moderator.getModerationMode().equals(MODERATION_MODE.PRE), 
+				true, 
 				false, 
 				userId, 
 				null, 

@@ -24,15 +24,9 @@ import java.util.Set;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.http.HttpResponse;
-import org.apache.http.HttpStatus;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.util.EntityUtils;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import eu.trentorise.smartcampus.communicator.CommunicatorConnector;
 import eu.trentorise.smartcampus.communicator.CommunicatorConnectorException;
 import eu.trentorise.smartcampus.communicator.model.EntityObject;
 import eu.trentorise.smartcampus.communicator.model.Notification;
@@ -42,82 +36,22 @@ import eu.trentorise.smartcampus.dt.model.EventObject;
 import eu.trentorise.smartcampus.dt.model.POIObject;
 import eu.trentorise.smartcampus.dt.model.StepObject;
 import eu.trentorise.smartcampus.dt.model.StoryObject;
-import eu.trentorise.smartcampus.network.JsonUtils;
-import eu.trentorise.smartcampus.network.RemoteConnector;
+import eu.trentorise.smartcampus.manager.utils.SCServiceConnector;
 
 /**
  * @author raman
  *
  */
 @Component
-public class NotificationHelper extends RemoteConnector implements UpdateNotifier {
+public class NotificationHelper extends SCServiceConnector implements UpdateNotifier {
 
-	private static final String PATH_TOKEN = "oauth/token";
-
-	private static final String TS_APP = "core.territory";
-	
 	@Autowired
 	private GeoTimeObjectSyncStorage storage;
 	
-	@Autowired
-	@Value("${communicatorURL}")
-	private String communicatorURL;
-	@Autowired
-	@Value("${aacURL}")
-	private String aacURL;
-	@Autowired
-	@Value("${smartcampus.clientId}")
-	private String clientId = null;
-	@Autowired
-	@Value("${smartcampus.clientSecret}")
-	private String clientSecret = null;
 	
-	private String token = null;
-	private Long expiresAt = null;
-	
-	private CommunicatorConnector connector = null;
-
 	private Log logger = LogFactory.getLog(getClass());
 	
 	public enum CHANGE {CREATED, UPDATED, DELETED};
-	
-	public NotificationHelper() throws Exception {
-		super();
-	}
-
-	private CommunicatorConnector connector() {
-		if (connector == null) {
-			try {
-				connector = new CommunicatorConnector(communicatorURL, TS_APP);
-			} catch (Exception e) {
-				logger.error("Failed to instantiate connector: "+e.getMessage(), e);
-				e.printStackTrace();
-			}
-		}
-		return connector;
-	}
-	@SuppressWarnings("rawtypes")
-	private String getToken() {
-		if (token == null || System.currentTimeMillis() + 10000 > expiresAt) {
-	        final HttpResponse resp;
-	        if (!aacURL.endsWith("/")) aacURL += "/";
-	        String url = aacURL + PATH_TOKEN+"?grant_type=client_credentials&client_id="+clientId +"&client_secret="+clientSecret;
-	        final HttpGet get = new HttpGet(url);
-	        get.setHeader("Accept", "application/json");
-            try {
-				resp = getHttpClient().execute(get);
-				final String response = EntityUtils.toString(resp.getEntity());
-				if (resp.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
-					Map map = JsonUtils.toObject(response, Map.class);
-					expiresAt = System.currentTimeMillis()+(Integer)map.get("expires_in")*1000;
-					token = (String)map.get("access_token");
-				}
-			} catch (Exception e) {
-				e.printStackTrace();
-			}
-		}
-		return token;
-	}
 	
 	@Override
 	public void eventCreated(EventObject eo) {
