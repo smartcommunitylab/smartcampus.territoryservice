@@ -15,11 +15,23 @@
  ******************************************************************************/
 package eu.trentorise.smartcampus.dt.model;
 
+import it.sayservice.platform.client.DomainEngineClient;
+import it.sayservice.platform.client.DomainObject;
+
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+
+import eu.trentorise.smartcampus.data.GeoTimeObjectSyncStorage;
+import eu.trentorise.smartcampus.manager.ModerationManager;
+import eu.trentorise.smartcampus.manager.ModerationManager.MODERATION_MODE;
+import eu.trentorise.smartcampus.network.JsonUtils;
+import eu.trentorise.smartcampus.presentation.common.util.Util;
+import eu.trentorise.smartcampus.processor.EventProcessorImpl;
 
 public class StoryObject extends BaseDTObject {
 
@@ -80,4 +92,80 @@ public class StoryObject extends BaseDTObject {
 		return res;
 	}
 	
+	@Override
+	public StoryObject updateDO(String userId, DomainEngineClient client, GeoTimeObjectSyncStorage storage, ModerationManager moderator) throws Exception {
+		return store(
+				!moderator.getModerationMode().equals(MODERATION_MODE.PRE), 
+				!moderator.getModerationMode().equals(MODERATION_MODE.DISABLED), 
+				userId, 
+				storage.getObjectById(getId(),StoryObject.class), 
+				client, storage, moderator);
+	}
+
+	protected StoryObject store(boolean toUpdate, boolean toModerate, String userId, BaseDTObject old, DomainEngineClient client, GeoTimeObjectSyncStorage storage, ModerationManager moderator) throws Exception {
+		if (!toUpdate && !toModerate) return this;
+		Map<String,Object> parameters = new HashMap<String, Object>();
+		String operation = null;
+		// TODO IN THIS WAY CAN MODIFY ONLY OWN OBJECTS, OTHERWISE ONLY TAGS IN COMMUNITY DATA
+		if (!userId.equals(getCreatorId())) {
+			operation = "updateCommunityData";
+			if (getCommunityData() != null) {
+				getCommunityData().setRating(null);
+			}
+			parameters.put("newCommunityData",  domainCommunityData());
+			if (toModerate) {
+				Map<String,Object> oldData = old.domainCommunityData();
+				Map<String,Object> commData = domainCommunityData();
+				moderator.moderateCommunityData(getId(), oldData, commData, userId);
+			}
+		} else {
+			operation = "updateStory";
+			parameters.put("newData", Util.convert(toGenericStory(), Map.class)); 
+			parameters.put("newCommunityData",  domainCommunityData());
+			if (toModerate) {
+				moderator.moderateObject(old, this, userId);
+			}
+		}
+		
+		if (toUpdate) {
+			client.invokeDomainOperation(
+					operation, 
+					getDomainType(), 
+					alignedDomainId(client),
+					parameters, null, null); 
+			
+			String oString = client.searchDomainObject(getDomainType(), alignedDomainId(client), null);
+			DomainObject dObj = new DomainObject(oString);
+			StoryObject uObj = EventProcessorImpl.convertStoryObject(dObj, storage);
+	//			storage.storeObject(uObj);
+			
+			uObj.filterUserData(userId);
+			return uObj;
+		}
+		return this;
+	}
+	
+	public GenericStory toGenericStory() {
+		GenericStory result = new GenericStory();
+		result.setId(getId());
+		result.setSource(getSource());
+		result.setTitle(getTitle());
+		result.setType(getType());
+		result.setDescription(getDescription());
+
+		if (getSteps() != null) {
+			result.setSteps(new GenericStoryStep[getSteps().size()]);
+			for (int i = 0; i < getSteps().size(); i++) {
+				result.getSteps()[i] = new GenericStoryStep(getSteps().get(i).getPoiId(), getSteps().get(i).getNote());
+			}
+		} else {
+			result.setSteps(new GenericStoryStep[0]);
+		}
+		if (getCustomData() != null) {
+			result.setCustomData(JsonUtils.toJSON(getCustomData()));
+		}
+		
+		return result;
+	}
+
 }

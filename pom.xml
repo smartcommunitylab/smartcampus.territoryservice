@@ -4,7 +4,7 @@
 	<artifactId>smartcampus.territoryservice</artifactId>
 	<packaging>war</packaging>
 	<name>Discover Trento VAS webapp</name>
-	<version>1.2</version>
+	<version>1.3</version>
 
 	<parent>
 		<groupId>eu.trentorise.smartcampus</groupId>

@@ -16,15 +16,12 @@
 package eu.trentorise.smartcampus.controller;
 
 
-import it.sayservice.platform.client.DomainObject;
-
-import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
 import javax.servlet.http.HttpServletRequest;
 
-import org.bson.types.ObjectId;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
@@ -36,11 +33,9 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import eu.trentorise.smartcampus.dt.model.BaseDTObject;
 import eu.trentorise.smartcampus.dt.model.StoryObject;
 import eu.trentorise.smartcampus.dt.model.UserStoryObject;
-import eu.trentorise.smartcampus.presentation.common.exception.DataException;
 import eu.trentorise.smartcampus.presentation.common.exception.NotFoundException;
 import eu.trentorise.smartcampus.presentation.common.util.Util;
 import eu.trentorise.smartcampus.presentation.data.BasicObject;
-import eu.trentorise.smartcampus.processor.EventProcessorImpl;
 
 @Controller
 public class StoryController extends AbstractObjectController {
@@ -48,25 +43,9 @@ public class StoryController extends AbstractObjectController {
 	@RequestMapping(method = RequestMethod.POST, value="/stories")
 	public ResponseEntity<UserStoryObject> createStory(HttpServletRequest request, @RequestBody Map<String,Object> objMap) {
 		UserStoryObject obj = Util.convert(objMap, UserStoryObject.class);
-		StoryObject tmp = null;
-		obj.setId(new ObjectId().toString());
 		try {
-			obj.setCreatorId(getUserId());
-			obj.setDomainType("eu.trentorise.smartcampus.domain.discovertrento.StoryObject");
-			tmp = Util.convert(obj, StoryObject.class);
-			storage.storeObject(tmp);
-			
-			obj.createDO(domainEngineClient, storage);
-			
+			obj.createDO(getUserId(), domainEngineClient, storage, moderator);
 		} catch (Exception e) {
-			logger.error("Failed to create userStory: "+e.getMessage());
-			e.printStackTrace();
-			try {
-				if (tmp != null) storage.deleteObject(tmp);
-			} catch (DataException e1) {
-				logger.error("Failed to cleanup userStory: "+e1.getMessage());
-			}
-
 			return new ResponseEntity<UserStoryObject>(HttpStatus.METHOD_FAILURE);
 		} 
 		return new ResponseEntity<UserStoryObject>(obj,HttpStatus.OK);
@@ -84,35 +63,7 @@ public class StoryController extends AbstractObjectController {
 
 		UserStoryObject obj = Util.convert(objMap, UserStoryObject.class);
 		try {
-			Map<String,Object> parameters = new HashMap<String, Object>();
-			String operation = null;
-			// TODO IN THIS WAY CAN MODIFY ONLY OWN OBJECTS, OTHERWISE ONLY TAGS IN COMMUNITY DATA
-			if (!getUserId().equals(obj.getCreatorId())) {
-				operation = "updateCommunityData";
-				if (obj.getCommunityData() != null) {
-					obj.getCommunityData().setRating(null);
-				}
-				parameters.put("newCommunityData",  obj.domainCommunityData());
-			} else {
-				operation = "updateStory";
-				parameters.put("newData", Util.convert(obj.toGenericStory(), Map.class)); 
-				parameters.put("newCommunityData",  obj.domainCommunityData());
-			}
-			
-			domainEngineClient.invokeDomainOperation(
-					operation, 
-					obj.getDomainType(), 
-					obj.alignedDomainId(domainEngineClient),
-					parameters, null, null); 
-			
-			String oString = domainEngineClient.searchDomainObject(obj.getDomainType(), obj.alignedDomainId(domainEngineClient), null);
-			DomainObject dObj = new DomainObject(oString);
-			StoryObject uObj = EventProcessorImpl.convertStoryObject(dObj, storage);
-//			storage.storeObject(uObj);
-			
-			uObj.filterUserData(getUserId());
-			return new ResponseEntity<StoryObject>(uObj,HttpStatus.OK);
-
+			return new ResponseEntity<StoryObject>(obj.updateDO(getUserId(), domainEngineClient, storage, moderator),HttpStatus.OK);
 		} catch (Exception e) {
 			logger.error("Failed to update userStory: "+e.getMessage());
 			e.printStackTrace();
@@ -124,9 +75,9 @@ public class StoryController extends AbstractObjectController {
 	@RequestMapping(method = RequestMethod.DELETE, value="/stories/{id:.+}")
 	public ResponseEntity<UserStoryObject> deleteStory(HttpServletRequest request, @PathVariable String id) {
 
-		StoryObject story = null;
+		UserStoryObject story = null;
 		try {
-			story = storage.getObjectById(id,StoryObject.class);
+			story = storage.getObjectById(id,UserStoryObject.class);
 			// CAN DELETE ONLY OWN OBJECTS
 			if (!getUserId().equals(story.getCreatorId())) {
 				logger.error("Attempt to delete not owned object. User "+getUserId()+", object "+story.getId());
@@ -140,16 +91,8 @@ public class StoryController extends AbstractObjectController {
 		}
 
 		
-		Map<String,Object> parameters = new HashMap<String, Object>(0);
 		try {
-			if (story.alignedDomainId(domainEngineClient) != null) {
-				domainEngineClient.invokeDomainOperation(
-						"deleteStory", 
-						"eu.trentorise.smartcampus.domain.discovertrento.StoryObject", 
-						story.alignedDomainId(domainEngineClient),
-						parameters, null, null); 
-				storage.deleteObject(story);
-			}
+			story.deleteDO(domainEngineClient, storage);
 		} catch (Exception e) {
 			logger.error("Failed to delete userStory: "+e.getMessage());
 			e.printStackTrace();
@@ -163,8 +106,13 @@ public class StoryController extends AbstractObjectController {
 	public ResponseEntity<List<StoryObject>> getAllStoryObject(HttpServletRequest request) throws Exception {
 		List<StoryObject> list = getAllObject(request, StoryObject.class);
 		String userId = getUserId();
-		for (BaseDTObject bo : list) {
-			bo.filterUserData(userId);
+		for (Iterator iterator = list.iterator(); iterator.hasNext();) {
+			BaseDTObject object = (BaseDTObject)iterator.next();
+			if (!object.objectVisible(userId)) {
+				iterator.remove();
+			} else { 
+				object.filterUserData(userId);
+			}
 		}
 		return new ResponseEntity<List<StoryObject>>(list, HttpStatus.OK);
 	}
@@ -173,7 +121,14 @@ public class StoryController extends AbstractObjectController {
 	public ResponseEntity<BasicObject> getStoryObjectById(HttpServletRequest request, @PathVariable String id) throws Exception {
 		try {
 			StoryObject o = storage.getObjectById(id, StoryObject.class);
-			if (o != null) o.filterUserData(getUserId());
+			String userId = getUserId();
+			if (o != null) {
+				if (!o.objectVisible(userId)) {
+					o = null;
+				} else {
+					o.filterUserData(userId);
+				}
+			}
 			return new ResponseEntity<BasicObject>(o,HttpStatus.OK);
 		} catch (NotFoundException e) {
 			logger.error("StoryObject with id "+ id+" does not exist");

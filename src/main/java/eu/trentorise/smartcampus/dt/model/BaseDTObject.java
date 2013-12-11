@@ -19,7 +19,6 @@ import it.sayservice.platform.client.DomainEngineClient;
 import it.sayservice.platform.client.DomainObject;
 import it.sayservice.platform.client.InvocationException;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -31,6 +30,8 @@ import java.util.Set;
 import javax.mail.MethodNotSupportedException;
 
 import eu.trentorise.smartcampus.data.GeoTimeObjectSyncStorage;
+import eu.trentorise.smartcampus.manager.ModerationManager;
+import eu.trentorise.smartcampus.manager.ModerationManager.MODERATION_MODE;
 import eu.trentorise.smartcampus.presentation.common.exception.DataException;
 import eu.trentorise.smartcampus.presentation.common.exception.NotFoundException;
 import eu.trentorise.smartcampus.presentation.common.util.Util;
@@ -190,10 +191,45 @@ public class BaseDTObject extends BasicObject {
 		this.timing = timing;
 	}
 
+	/**
+	 * Make the community data invisible for the specified user
+	 * @param userId
+	 */
 	public void filterUserData(String userId) {
 		CommunityData.filterUserData(communityData, userId);
 	}
+	
+	/**
+	 * Check whether the specified user can see the object.
+	 * @param userId
+	 * @return
+	 */
+	public boolean objectVisible(String userId) {
+		if (getCustomData() != null && getCustomData().get("pending") != null && (Boolean)getCustomData().get("pending") && !userId.equals(creatorId)) {
+			return false;
+		}
+		return true;
+	}
 
+	/**
+	 * Mark the object invisible for the users (other than the object creator)
+	 */
+	public void markInvisible() {
+		if (customData == null) {
+			customData = new HashMap<String, Object>();
+		}
+		customData.put("pending", true);
+	}
+	
+	/**
+	 * Mark the object visible for the users (other than the object creator)
+	 */
+	public void markVisible() {
+		if (customData != null) {
+			customData.remove("pending");
+		}
+	}
+	
 	@SuppressWarnings("unchecked")
 	public Map<String,Object> domainCommunityData() {
 		if (communityData == null) {
@@ -204,18 +240,8 @@ public class BaseDTObject extends BasicObject {
 		map.remove("followsCount");
 		map.remove("ratings");
 		map.remove("rating");
-		if (communityData.getRating() != null) {
-			List<Map<String,Object>> list = new ArrayList<Map<String,Object>>();
-			for (String key : communityData.getRating().keySet()) {
-				Map<String,Object> m = new HashMap<String, Object>(2); 
-				m.put("user", key);
-				m.put("value", communityData.getRating().get(key));
-				list.add(m);
-			}
-			map.put("ratings", list);
-		} else {
-			map.put("ratings", Collections.emptyList());
-		}
+		map.remove("following");
+		map.remove("averageRating");
 		return map;
 	}
 
@@ -263,23 +289,80 @@ public class BaseDTObject extends BasicObject {
 				setDomainId(dobj.getId());
 				storage.storeObject(this);
 			} else {
-				createDO(client, storage);
+				createDO(creatorId, client, storage, null);
 			}
 		}
 	}
 
 	/**
-	 * Create object in domain
+	 * Create object in local storage and domain. 
+	 * @param userId
 	 * @param client
 	 * @param storage
+	 * @param moderator
+	 * 
 	 * @throws DataException 
 	 * @throws NotFoundException 
 	 * @throws InvocationException 
 	 * @throws MethodNotSupportedException 
 	 */
-	public void createDO(DomainEngineClient client, GeoTimeObjectSyncStorage storage) throws NotFoundException, DataException, InvocationException, MethodNotSupportedException {
+	public void createDO(String userId, DomainEngineClient client, GeoTimeObjectSyncStorage storage, ModerationManager moderator) throws Exception {
 		throw new MethodNotSupportedException("Cannot create DO of this type");
 	}
+
+	/**
+	 * Update object in local storage and domain. 
+	 * @param userId
+	 * @param client
+	 * @param storage
+	 * @param moderator
+	 * 
+	 * @throws DataException 
+	 * @throws NotFoundException 
+	 * @throws InvocationException 
+	 * @throws MethodNotSupportedException 
+	 */
+	public BaseDTObject updateDO(String userId, DomainEngineClient client, GeoTimeObjectSyncStorage storage, ModerationManager moderator) throws Exception {
+		throw new MethodNotSupportedException("Cannot update DO of this type");
+	}
+
+	/**
+	 * Delete object in local storage and domain.
+	 * @param domainEngineClient
+	 * @param dataStorage
+	 * @throws MethodNotSupportedException 
+	 */
+	public void deleteDO(DomainEngineClient client, GeoTimeObjectSyncStorage storage) throws Exception {
+		throw new MethodNotSupportedException("Cannot update DO of this type");
+	} 
+
+	protected BaseDTObject store(boolean toUpdate, boolean toModerate, String userId, BaseDTObject old, DomainEngineClient client, GeoTimeObjectSyncStorage storage, ModerationManager moderator) throws Exception {
+		throw new MethodNotSupportedException("Cannot update DO of this type");
+	}
+
+	/**
+	 * Confirm the object update after moderation (if supported). Stores the object changes in the domain.
+	 * @param userId
+	 * @param client
+	 * @param storage
+	 * @param moderator
+	 * @throws Exception
+	 */
+	public void confirmDO(String userId, DomainEngineClient client, GeoTimeObjectSyncStorage storage, ModerationManager moderator) throws Exception {
+		try {
+			if (storage.getObjectById(getId()) == null) return;
+		} catch (Exception e) {
+			return;
+		}
+		
+		store(
+				moderator.getModerationMode().equals(MODERATION_MODE.PRE), 
+				false, 
+				userId, 
+				null, 
+				client, storage, moderator);
+	}
+	
 
 	/**
 	 * Read domain ID from the domain if the object is not yet aligned.
@@ -299,5 +382,6 @@ public class BaseDTObject extends BasicObject {
 			}			
 		}
 		return domainId;
-	} 
+	}
+
 }

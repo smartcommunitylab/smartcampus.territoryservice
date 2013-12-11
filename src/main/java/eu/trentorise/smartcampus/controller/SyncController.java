@@ -92,19 +92,33 @@ public class SyncController extends AbstractObjectController {
 						iterator.remove();
 						continue;
 					}
+					if (!event.objectVisible(userId)) {
+						iterator.remove();
+						continue;
+					}
 					event.filterUserData(userId);
 				}
 			}
 			list = result.getUpdated().get(StoryObject.class.getName());
 			if (list != null && !list.isEmpty()) {
-				for (BasicObject story : list) {
-					((StoryObject)story).filterUserData(userId);
+				for (Iterator<BasicObject> iterator = list.iterator(); iterator.hasNext();) {
+					StoryObject obj = (StoryObject) iterator.next();
+					if (!obj.objectVisible(userId)) {
+						iterator.remove();
+						continue;
+					}
+					obj.filterUserData(userId);
 				}
 			}
 			list = result.getUpdated().get(POIObject.class.getName());
 			if (list != null && !list.isEmpty()) {
-				for (BasicObject poi : list) {
-					((POIObject)poi).filterUserData(userId);
+				for (Iterator<BasicObject> iterator = list.iterator(); iterator.hasNext();) {
+					POIObject obj = (POIObject) iterator.next();
+					if (!obj.objectVisible(userId)) {
+						iterator.remove();
+						continue;
+					}
+					obj.filterUserData(userId);
 				}
 			}
 		}

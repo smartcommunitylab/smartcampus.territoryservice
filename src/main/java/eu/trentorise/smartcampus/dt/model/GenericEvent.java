@@ -37,6 +37,8 @@ public class GenericEvent implements java.io.Serializable {
 	private String poiId;
 	private String addressString;
 
+	private String customData;
+
 	public GenericEvent() {
 		super();
 	}
@@ -135,5 +137,13 @@ public class GenericEvent implements java.io.Serializable {
 
 	public void setTiming(String timing) {
 		this.timing = timing;
+	}
+
+	public String getCustomData() {
+		return customData;
+	}
+
+	public void setCustomData(String customData) {
+		this.customData = customData;
 	}
 }

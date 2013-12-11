@@ -15,6 +15,19 @@
  ******************************************************************************/
 package eu.trentorise.smartcampus.dt.model;
 
+import it.sayservice.platform.client.DomainEngineClient;
+import it.sayservice.platform.client.DomainObject;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import eu.trentorise.smartcampus.data.GeoTimeObjectSyncStorage;
+import eu.trentorise.smartcampus.manager.ModerationManager;
+import eu.trentorise.smartcampus.manager.ModerationManager.MODERATION_MODE;
+import eu.trentorise.smartcampus.network.JsonUtils;
+import eu.trentorise.smartcampus.presentation.common.util.Util;
+import eu.trentorise.smartcampus.processor.EventProcessorImpl;
+
 public class POIObject extends BaseDTObject {
 	private static final long serialVersionUID = 3377022799304541031L;
 	
@@ -47,7 +60,62 @@ public class POIObject extends BaseDTObject {
 		result.setTitle(getTitle());
 		result.setType(getType());
 		result.setDescription(getDescription());
+		if (getCustomData() != null) {
+			result.setCustomData(JsonUtils.toJSON(getCustomData()));
+		}
 		return result;
 	}
 
+	@Override
+	public POIObject updateDO(String userId, DomainEngineClient client, GeoTimeObjectSyncStorage storage, ModerationManager moderator) throws Exception {
+		return store(
+				!moderator.getModerationMode().equals(MODERATION_MODE.PRE), 
+				!moderator.getModerationMode().equals(MODERATION_MODE.DISABLED), 
+				userId, 
+				storage.getObjectById(getId(),POIObject.class), 
+				client, storage, moderator);
+	}
+
+	protected POIObject store(boolean toUpdate, boolean toModerate, String userId, BaseDTObject old, DomainEngineClient client, GeoTimeObjectSyncStorage storage, ModerationManager moderator) throws Exception {
+		if (!toUpdate && !toModerate) return this;
+		Map<String,Object> parameters = new HashMap<String, Object>(1);
+		String operation = null;
+		// TODO IN THIS WAY CAN MODIFY ONLY OWN OBJECTS, OTHERWISE ONLY TAGS IN COMMUNITY DATA
+		if (!userId.equals(getCreatorId())) {
+			operation = "updateCommunityData";
+			if (getCommunityData() != null) {
+				getCommunityData().setRating(null);
+			}
+			if (toModerate) {
+				Map<String,Object> oldData = old.domainCommunityData();
+				Map<String,Object> commData = domainCommunityData();
+				moderator.moderateCommunityData(getId(), oldData, commData, userId);
+			}
+			parameters.put("newCommunityData",  domainCommunityData());
+		} else {
+			operation = "updatePOI";
+			parameters.put("newData", Util.convert(toGenericPOI(), Map.class)); 
+			parameters.put("newCommunityData",  domainCommunityData());
+			
+			if (toModerate) {
+				moderator.moderateObject(old, this, userId);
+			}
+		}
+	
+		if (toUpdate) {
+			client.invokeDomainOperation(
+					operation, 
+					getDomainType(), 
+					alignedDomainId(client),
+					parameters, null, null); 
+			
+			String oString = client.searchDomainObject(getDomainType(), alignedDomainId(client), null);
+			DomainObject dObj = new DomainObject(oString);
+			POIObject uObj = EventProcessorImpl.convertPOIObject(dObj);
+	//			storage.storeObject(uObj);
+			uObj.filterUserData(userId);
+			return uObj;
+		}
+		return this;
+	}
 }

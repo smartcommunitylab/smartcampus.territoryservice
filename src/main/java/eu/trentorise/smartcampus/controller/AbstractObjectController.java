@@ -35,6 +35,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import eu.trentorise.smartcampus.data.GeoTimeObjectSyncStorage;
 import eu.trentorise.smartcampus.dt.model.BaseDTObject;
 import eu.trentorise.smartcampus.dt.model.ObjectFilter;
+import eu.trentorise.smartcampus.manager.ModerationManager;
 import eu.trentorise.smartcampus.resourceprovider.controller.SCController;
 import eu.trentorise.smartcampus.resourceprovider.model.AuthServices;
 
@@ -46,7 +47,9 @@ public class AbstractObjectController extends SCController {
 	protected GeoTimeObjectSyncStorage storage;
 	@Autowired
 	protected DomainEngineClient domainEngineClient; 
-
+	@Autowired
+	protected ModerationManager moderator;
+	
 	protected Log logger = LogFactory.getLog(this.getClass());
 
 	@Autowired

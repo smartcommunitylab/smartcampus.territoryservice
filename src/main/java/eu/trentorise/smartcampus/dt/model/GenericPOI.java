@@ -28,6 +28,8 @@ public class GenericPOI implements java.io.Serializable {
 	private String type;
 	private POIData poiData;
 
+	private String customData;
+
 	public GenericPOI() {
 		super();
 	}
@@ -78,6 +80,14 @@ public class GenericPOI implements java.io.Serializable {
 
 	public void setPoiData(POIData poiData) {
 		this.poiData = poiData;
+	}
+
+	public String getCustomData() {
+		return customData;
+	}
+
+	public void setCustomData(String customData) {
+		this.customData = customData;
 	}
 
 }

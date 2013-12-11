@@ -16,15 +16,13 @@
 package eu.trentorise.smartcampus.controller;
 
 
-import it.sayservice.platform.client.DomainObject;
-
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
 import javax.servlet.http.HttpServletRequest;
 
-import org.bson.types.ObjectId;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
@@ -40,7 +38,6 @@ import eu.trentorise.smartcampus.presentation.common.exception.DataException;
 import eu.trentorise.smartcampus.presentation.common.exception.NotFoundException;
 import eu.trentorise.smartcampus.presentation.common.util.Util;
 import eu.trentorise.smartcampus.presentation.data.BasicObject;
-import eu.trentorise.smartcampus.processor.EventProcessorImpl;
 
 @Controller
 public class POIController extends AbstractObjectController {
@@ -48,8 +45,6 @@ public class POIController extends AbstractObjectController {
 	@RequestMapping(method = RequestMethod.POST, value="/pois")
 	public ResponseEntity<UserPOIObject> createPOI(HttpServletRequest request, @RequestBody Map<String,Object> objMap) {
 		UserPOIObject obj = Util.convert(objMap, UserPOIObject.class);
-		POIObject tmp = null;
-		obj.setId(new ObjectId().toString());
 		try {
 			validatePOI(obj);
 		} catch (DataException e1) {
@@ -59,25 +54,14 @@ public class POIController extends AbstractObjectController {
 		}
 		
 		try {
-			obj.setCreatorId(getUserId());
-			obj.setDomainType("eu.trentorise.smartcampus.domain.discovertrento.UserPOIObject");
-			tmp =  Util.convert(obj, POIObject.class);
-			storage.storeObject(tmp);
-			obj.createDO(domainEngineClient, storage);
+			obj.createDO(getUserId(), domainEngineClient, storage, moderator);
 		} catch (Exception e) {
-			logger.error("Failed to create userPOI: "+e.getMessage());
-			e.printStackTrace();
-			try {
-				if (tmp != null) storage.deleteObject(tmp);
-			} catch (DataException e1) {
-				logger.error("Failed to cleanup userPOI: "+e1.getMessage());
-			}
 			return new ResponseEntity<UserPOIObject>(HttpStatus.METHOD_FAILURE);
 		} 
 		return new ResponseEntity<UserPOIObject>(obj,HttpStatus.OK);
 	}
 
-	private void validatePOI(UserPOIObject obj) throws DataException {
+	private void validatePOI(POIObject obj) throws DataException {
 		if (obj.getLocation() == null || obj.getTitle() == null || obj.getType() == null) {
 			throw new DataException("Incomplete data object");
 		}
@@ -98,7 +82,7 @@ public class POIController extends AbstractObjectController {
 			return new ResponseEntity<POIObject>(HttpStatus.METHOD_FAILURE);
 		}
 		
-		UserPOIObject obj = Util.convert(objMap, UserPOIObject.class);
+		POIObject obj = Util.convert(objMap, POIObject.class);
 		try {
 			validatePOI(obj);
 		} catch (DataException e1) {
@@ -107,37 +91,8 @@ public class POIController extends AbstractObjectController {
 			return new ResponseEntity<POIObject>(HttpStatus.METHOD_FAILURE);
 		}
 		
-		Map<String,Object> parameters = new HashMap<String, Object>(1);
 		try {
-			String operation = null;
-			// TODO IN THIS WAY CAN MODIFY ONLY OWN OBJECTS, OTHERWISE ONLY TAGS IN COMMUNITY DATA
-			if (!getUserId().equals(obj.getCreatorId())) {
-				operation = "updateCommunityData";
-				if (obj.getCommunityData() != null) {
-					obj.getCommunityData().setRating(null);
-				}
-				parameters.put("newCommunityData",  obj.domainCommunityData());
-			} else {
-				operation = "updatePOI";
-				parameters.put("newData", Util.convert(obj.toGenericPOI(), Map.class)); 
-				parameters.put("newCommunityData",  obj.domainCommunityData());
-			}
-		
-			domainEngineClient.invokeDomainOperation(
-					operation, 
-					obj.getDomainType(), 
-					obj.alignedDomainId(domainEngineClient),
-					parameters, null, null); 
-			
-			String oString = domainEngineClient.searchDomainObject(obj.getDomainType(), obj.alignedDomainId(domainEngineClient), null);
-			DomainObject dObj = new DomainObject(oString);
-			POIObject uObj = EventProcessorImpl.convertPOIObject(dObj);
-//			storage.storeObject(uObj);
-			
-			uObj.filterUserData(getUserId());
-			
-			return new ResponseEntity<POIObject>(uObj,HttpStatus.OK);
-
+			return new ResponseEntity<POIObject>(obj.updateDO(getUserId(), domainEngineClient, storage, moderator),HttpStatus.OK);
 		} catch (Exception e) {
 			logger.error("Failed to update userPOI: "+e.getMessage());
 			e.printStackTrace();
@@ -148,9 +103,9 @@ public class POIController extends AbstractObjectController {
 	@RequestMapping(method = RequestMethod.DELETE, value="/pois/{id:.+}")
 	public ResponseEntity<UserPOIObject> deletePOI(HttpServletRequest request, @PathVariable String id) {
 
-		POIObject poi = null;
+		UserPOIObject poi = null;
 		try {
-			poi = storage.getObjectById(id,POIObject.class);
+			poi = storage.getObjectById(id,UserPOIObject.class);
 			// CAN DELETE ONLY OWN OBJECTS
 			if (!getUserId().equals(poi.getCreatorId())) {
 				logger.error("Attempt to delete not owned object. User "+getUserId()+", object "+poi.getId());
@@ -163,16 +118,7 @@ public class POIController extends AbstractObjectController {
 			return new ResponseEntity<UserPOIObject>(HttpStatus.METHOD_FAILURE);
 		}
 		try {
-			if (poi.alignedDomainId(domainEngineClient) != null) {
-				domainEngineClient.invokeDomainOperation(
-						"deletePOI", 
-						poi.getDomainType(), 
-						poi.alignedDomainId(domainEngineClient),
-						new HashMap<String, Object>(0), null, null); 
-				
-				storage.deleteObject(poi);
-			}
-
+			poi.deleteDO(domainEngineClient, storage);
 		} catch (Exception e) {
 			logger.error("Failed to delete userPOI: "+e.getMessage());
 			e.printStackTrace();
@@ -186,8 +132,13 @@ public class POIController extends AbstractObjectController {
 	public ResponseEntity<List<POIObject>> getAllPOIObject(HttpServletRequest request) throws Exception {
 		List<POIObject> list = getAllObject(request, POIObject.class);
 		String userId = getUserId();
-		for (BaseDTObject bo : list) {
-			bo.filterUserData(userId);
+		for (Iterator iterator = list.iterator(); iterator.hasNext();) {
+			BaseDTObject object = (BaseDTObject)iterator.next();
+			if (!object.objectVisible(userId)) {
+				iterator.remove();
+			} else { 
+				object.filterUserData(userId);
+			}
 		}
 		return new ResponseEntity<List<POIObject>>(list, HttpStatus.OK);
 	}
@@ -195,9 +146,16 @@ public class POIController extends AbstractObjectController {
 	@RequestMapping(method = RequestMethod.GET, value="/pois/{id:.+}")
 	public ResponseEntity<BasicObject> getPOIObjectById(HttpServletRequest request, @PathVariable String id) throws Exception {
 		try {
-			POIObject poi = storage.getObjectById(id, POIObject.class);
-			if (poi != null) poi.filterUserData(getUserId());
-			return new ResponseEntity<BasicObject>(poi,HttpStatus.OK);
+			POIObject o = storage.getObjectById(id, POIObject.class);
+			String userId = getUserId();
+			if (o != null) {
+				if (!o.objectVisible(userId)) {
+					o = null;
+				} else {
+					o.filterUserData(userId);
+				}
+			}
+			return new ResponseEntity<BasicObject>(o,HttpStatus.OK);
 		} catch (NotFoundException e) {
 			logger.error("POIObject with id "+ id+" does not exist");
 			e.printStackTrace();
