@@ -25,8 +25,8 @@ import eu.trentorise.smartcampus.dt.model.BaseDTObject;
  */
 public interface ModerationNotifier {
 
-	void notifyRejected(BaseDTObject object, String note);
+	void notifyRejected(BaseDTObject object, String note, String userId, long modificationTime);
 	
-	void notifyAccepted(BaseDTObject object, String note);
+	void notifyAccepted(BaseDTObject object, String note, String userId, long modificationTime);
 	
 }

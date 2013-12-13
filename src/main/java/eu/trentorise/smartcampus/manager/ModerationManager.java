@@ -60,6 +60,9 @@ public class ModerationManager {
 	protected DomainEngineClient domainEngineClient; 
 	@Autowired
 	private ModerationStorage storage = null;
+	@Autowired
+	private ModerationNotifier notifier = null;
+	
 	
 	@Value("${moderation.mode}")
 	private String mode;
@@ -224,8 +227,19 @@ public class ModerationManager {
 		}
 		
 		if (getModerationMode().equals(MODERATION_MODE.POST)) {
-			// TODO notify the users
-			// notify all the rejected updates from the lastAccepted onwards
+			for (int i = Math.max(lastAcceptedPos, 0); i < list.size(); i++) {
+				ModerationItem item = list.get(i);
+				if (!STATE.D.equals(states.get(item.getId()))) continue;
+				
+				String note = notes.get(item.getId());
+				if (note != null && !note.isEmpty()) {
+					try {
+						notifier.notifyRejected(convertData(item.getObjectType(),item.getNewValue()), note, item.getUserId(), item.getTimestamp());
+					} catch (ClassNotFoundException e) {
+						logger.warn("Failed to notify data: "+e.getMessage());
+					}
+				}
+			}
 		}
 	}
 
@@ -267,8 +281,7 @@ public class ModerationManager {
 
 	private void callConfirm(String objectId, String objectType, Map<String,Object> data, String userId) {
 		try {
-			Class<?> cls = Thread.currentThread().getContextClassLoader().loadClass(objectType);
-			BaseDTObject obj = (BaseDTObject)JsonUtils.convert(data, cls);
+			BaseDTObject obj = convertData(objectType, data);
 			if (obj != null) {
 				obj.confirmDO(userId, domainEngineClient, dataStorage, this);
 			}
@@ -277,6 +290,12 @@ public class ModerationManager {
 			logger.warn("Failed to confirm object "+objectId+": "+e.getMessage());
 			return;
 		}
+	}
+
+	private BaseDTObject convertData(String objectType, Map<String, Object> data) throws ClassNotFoundException {
+		Class<?> cls = Thread.currentThread().getContextClassLoader().loadClass(objectType);
+		BaseDTObject obj = (BaseDTObject)JsonUtils.convert(data, cls);
+		return obj;
 	}
 
 	public MODERATION_MODE getModerationMode() {
