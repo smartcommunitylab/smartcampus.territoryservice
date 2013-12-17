@@ -39,7 +39,13 @@ import org.springframework.stereotype.Component;
 import eu.trentorise.smartcampus.data.GeoTimeObjectSyncStorage;
 import eu.trentorise.smartcampus.data.ModerationStorage;
 import eu.trentorise.smartcampus.dt.model.BaseDTObject;
+import eu.trentorise.smartcampus.dt.model.EventObject;
 import eu.trentorise.smartcampus.dt.model.ModerationItem;
+import eu.trentorise.smartcampus.dt.model.POIObject;
+import eu.trentorise.smartcampus.dt.model.StoryObject;
+import eu.trentorise.smartcampus.dt.model.UserEventObject;
+import eu.trentorise.smartcampus.dt.model.UserPOIObject;
+import eu.trentorise.smartcampus.dt.model.UserStoryObject;
 import eu.trentorise.smartcampus.network.JsonUtils;
 
 /**
@@ -68,6 +74,8 @@ public class ModerationManager {
 	private String mode;
 	@Value("${moderation.file}")
 	private Resource moderationFile;
+	@Value("${moderation.file.deleted}")
+	private Resource deletedFile;
 	private Log logger = LogFactory.getLog(getClass());
 
 	/**
@@ -111,7 +119,57 @@ public class ModerationManager {
 		} catch (IOException e) {
 			logger.error("Failed to process file: "+e.getMessage(),e);
 		}
+		
+		try {
+			checkDeleted();
+		} catch (Exception e) {
+			logger.error("Failed to process file with objects to be deleted: "+e.getMessage());
+		}
 	}
+	
+
+	/**
+	 * Read file with IDs of the objects to be deleted and remove them
+	 * @throws FileNotFoundException 
+	 * 
+	 */
+	private void checkDeleted() throws IOException {
+		if (MODERATION_MODE.DISABLED.equals(getModerationMode())) return;
+		
+		if (deletedFile == null) return;
+		
+		BufferedReader bin = null;
+		
+		try {
+			bin = new BufferedReader(new InputStreamReader(deletedFile.getInputStream()));
+			String line = null;
+			while ((line = bin.readLine()) != null) {
+				line = line.trim();
+				// bypass comment lines or empty lines
+				if (line.length() == 0 || line.startsWith("#")) {
+					continue;
+				}
+				try {
+					BaseDTObject obj = (BaseDTObject)dataStorage.getObjectById(line);
+					if (obj instanceof EventObject) {
+						obj = JsonUtils.convert(obj, UserEventObject.class);
+					} else if (obj instanceof POIObject) {
+						obj = JsonUtils.convert(obj, UserPOIObject.class);
+					} else if (obj instanceof StoryObject) {
+						obj = JsonUtils.convert(obj, UserStoryObject.class);
+					}
+					obj.deleteDO(domainEngineClient, dataStorage);
+				} catch (Exception e) {
+					logger.warn("Problem looking for object with id "+line);
+					continue;
+				} 
+				
+			}
+		} finally {
+			if (bin != null) bin.close();
+		}
+	}
+
 	
 	/**
 	 * @throws FileNotFoundException 
@@ -253,8 +311,8 @@ public class ModerationManager {
 		if (item != null) {
 			try {
 				if (toDelete) {
-					BaseDTObject obj = (BaseDTObject)dataStorage.getObjectById(item.getObjectId());
 					if (item.getOldValue() == null || item.getOldValue().isEmpty()) {
+						BaseDTObject obj = convertData(item.getObjectType(), item.getNewValue());
 						obj.deleteDO(domainEngineClient, dataStorage);
 					}
 				} else {
