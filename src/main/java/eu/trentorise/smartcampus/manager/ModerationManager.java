@@ -169,8 +169,6 @@ public class ModerationManager {
 			
 			ModerationItem item = storage.getItemById(c.getObjectId());
 			
-			logger.info("MODERATED ITEM: "+c.get_id()+" "+c.getManualApproved()+" "+c.getObjectId()+" "+item);
-			
 			if (item == null) {
 				toDelete.add(c);
 				continue;
