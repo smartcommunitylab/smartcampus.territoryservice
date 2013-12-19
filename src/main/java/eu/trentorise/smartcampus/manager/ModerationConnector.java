@@ -75,7 +75,7 @@ public class ModerationConnector extends SCServiceConnector {
 		if (oldObj == null) s.append("action:CREATED\n");
 		else {
 			s.append("action:UPDATED\n");
-			s.append("OLD:\n" + formatObject(oldObj));
+			s.append("OLD:\n" + formatObject(oldObj)+"\n");
 		}
 		s.append("NEW:\n");
 		s.append(formatObject(newObj));
