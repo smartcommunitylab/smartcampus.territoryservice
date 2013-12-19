@@ -101,7 +101,7 @@ public class NotificationHelper extends SCServiceConnector implements UpdateNoti
 				return;
 			}
 			try {
-				connector().sendAppNotification(n, TS_APP, new ArrayList<String>(followers.keySet()), getToken());
+				communicatorConnector().sendAppNotification(n, TS_APP, new ArrayList<String>(followers.keySet()), getToken());
 			} catch (CommunicatorConnectorException e) {
 				e.printStackTrace();
 				logger .error("Failed to send notifications: "+e.getMessage(), e);

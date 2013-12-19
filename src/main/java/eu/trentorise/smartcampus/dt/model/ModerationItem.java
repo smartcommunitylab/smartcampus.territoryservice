@@ -35,6 +35,7 @@ public class ModerationItem implements Comparable<ModerationItem> {
 	private Map<String,Object> newValue;
 	private String objectType;
 	private Long timestamp;
+	private boolean moderated;
 	
 	public ModerationItem() {
 		super();
@@ -151,4 +152,19 @@ public class ModerationItem implements Comparable<ModerationItem> {
 	public void setTimestamp(long timestamp) {
 		this.timestamp = timestamp;
 	}
+
+	/**
+	 * @return the moderated
+	 */
+	public boolean isModerated() {
+		return moderated;
+	}
+
+	/**
+	 * @param moderated the moderated to set
+	 */
+	public void setModerated(boolean moderated) {
+		this.moderated = moderated;
+	}
+
 }

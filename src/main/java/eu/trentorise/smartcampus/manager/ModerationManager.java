@@ -46,6 +46,9 @@ import eu.trentorise.smartcampus.dt.model.StoryObject;
 import eu.trentorise.smartcampus.dt.model.UserEventObject;
 import eu.trentorise.smartcampus.dt.model.UserPOIObject;
 import eu.trentorise.smartcampus.dt.model.UserStoryObject;
+import eu.trentorise.smartcampus.moderatorservice.model.ContentToModeratorService;
+import eu.trentorise.smartcampus.moderatorservice.model.State;
+import eu.trentorise.smartcampus.moderatoservice.exception.ModeratorServiceException;
 import eu.trentorise.smartcampus.network.JsonUtils;
 
 /**
@@ -68,6 +71,8 @@ public class ModerationManager {
 	private ModerationStorage storage = null;
 	@Autowired
 	private ModerationNotifier notifier = null;
+	@Autowired
+	private ModerationConnector connector = null;
 	
 	
 	@Value("${moderation.mode}")
@@ -100,26 +105,42 @@ public class ModerationManager {
 			}
 		}
 		Map<String,Object> newValue = JsonUtils.convert(newObj, Map.class); 
-			ModerationItem item = storage.storeItem(newObj.getId(), user, TYPE_OBJECT, oldValue, newValue, newObj.getClass().getCanonicalName());
-		sendModerationRequest(item);
+		ModerationItem item = storage.storeItem(newObj.getId(), user, TYPE_OBJECT, oldValue, newValue, newObj.getClass().getCanonicalName());
+		sendModerationRequest(oldObj, newObj, user, item);		
 	}
 
-	/**
-	 * @param item
-	 */
-	private void sendModerationRequest(ModerationItem item) {
-		// TODO Auto-generated method stub
+	private void sendModerationRequest(BaseDTObject oldObj, BaseDTObject newObj, String user, ModerationItem item) {
+		try {
+			Boolean modResult = connector.requestModeration(oldObj, newObj, user, item.getId());
+			item.setModerated(modResult);
+			storage.updateItem(item);
+		} catch (Exception e) {
+			logger.warn("Problem sending moderation request: "+e.getMessage());
+		}
 	}
-	
+
 	@Scheduled(fixedRate = 30000)
 	public void checkModerationResults() {
-		//TODO move to the service
+		// check moderated from moderation service
+		try {
+			checkModerated();
+		} catch (Exception e) {
+			logger.error("Failed to process moderated: "+e.getMessage(),e);
+		}
+	
+		// check updates stored, but not submitted to the moderation service
+		try {
+			checkNotSent();
+		} catch (Exception e) {
+			logger.error("Failed to process objects not sent: "+e.getMessage());
+		}
+		// check moderations from local file
 		try {
 			checkFile();
-		} catch (IOException e) {
-			logger.error("Failed to process file: "+e.getMessage(),e);
+		} catch (Exception e) {
+			logger.error("Failed to process objects from file: "+e.getMessage());
 		}
-		
+		// check objects deleted directly
 		try {
 			checkDeleted();
 		} catch (Exception e) {
@@ -127,6 +148,68 @@ public class ModerationManager {
 		}
 	}
 	
+
+	/**
+	 * @throws ModeratorServiceException 
+	 * @throws SecurityException 
+	 * 
+	 */
+	private void checkModerated() throws SecurityException, ModeratorServiceException {
+		List<ContentToModeratorService> moderationResults = connector.getModerated();
+		Map<String,List<ModerationItem>> itemGroups = new HashMap<String, List<ModerationItem>>();
+		Map<String,STATE> states = new HashMap<String, ModerationManager.STATE>();
+		Map<String,String> notes = new HashMap<String, String>();
+
+		List<ContentToModeratorService> toDelete = new ArrayList<ContentToModeratorService>();
+		
+		for (ContentToModeratorService c : moderationResults) {
+			STATE state = c.getManualApproved().equals(State.APPROVED) ? STATE.A :
+				c.getManualApproved().equals(State.NOT_APPROVED) ? STATE.D : STATE.W;
+			String note = c.getNote();
+			
+			ModerationItem item = storage.getItemById(c.getObjectId());
+			
+			logger.info("MODERATED ITEM: "+c.get_id()+" "+c.getManualApproved()+" "+c.getObjectId()+" "+item);
+			
+			if (item == null) {
+				toDelete.add(c);
+				continue;
+			}
+			
+			List<ModerationItem> items = itemGroups.get(item.getObjectId());
+			if (items == null) {
+				items = new ArrayList<ModerationItem>();
+				itemGroups.put(item.getObjectId(), items);
+			}
+			items.add(item); 
+			notes.put(c.getObjectId(), note);
+			states.put(c.getObjectId(), state);
+			if (!state.equals(STATE.W)) {
+				toDelete.add(c);
+			}
+		}
+		for (String objectId : itemGroups.keySet()) {
+			checkObject(itemGroups.get(objectId), states, notes);
+		}
+		for (ContentToModeratorService c: toDelete) {
+			connector.deleteModerated(c);
+		}
+	}
+
+	/**
+	 * @throws ClassNotFoundException 
+	 * 
+	 */
+	private void checkNotSent() throws ClassNotFoundException {
+		List<ModerationItem> items = storage.findItemsNotSent();
+		if (items != null) {
+			for (ModerationItem item : items) {
+				BaseDTObject oldVal = item.getOldValue() == null ? null : convertData(item.getObjectType(), item.getOldValue());
+				BaseDTObject newVal = convertData(item.getObjectType(), item.getNewValue());
+				sendModerationRequest(oldVal, newVal, item.getUserId(), item);
+			}
+		}
+	}
 
 	/**
 	 * Read file with IDs of the objects to be deleted and remove them

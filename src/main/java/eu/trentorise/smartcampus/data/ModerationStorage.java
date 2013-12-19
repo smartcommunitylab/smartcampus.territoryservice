@@ -48,6 +48,10 @@ public class ModerationStorage {
 		return item;
 	}
 	
+	public void updateItem(ModerationItem item) {
+		mongoTemplate.save(item);
+	}
+	
 	public void removeItem(ModerationItem item) {
 		mongoTemplate.remove(item);
 	}
@@ -68,6 +72,10 @@ public class ModerationStorage {
 
 	public void updateReferenceValue(String objectId, Map<String, Object> oldValue) {
 		mongoTemplate.updateMulti(Query.query(Criteria.where("objectId").is(objectId)), Update.update("oldValue", oldValue), ModerationItem.class);
+	}
+
+	public List<ModerationItem> findItemsNotSent() {
+		return mongoTemplate.find(Query.query(Criteria.where("moderated").in(false,null)), ModerationItem.class);
 	}
 
 }

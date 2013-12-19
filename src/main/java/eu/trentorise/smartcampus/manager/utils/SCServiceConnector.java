@@ -28,6 +28,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 
 import eu.trentorise.smartcampus.communicator.CommunicatorConnector;
+import eu.trentorise.smartcampus.moderatoservice.ModeratorService;
 import eu.trentorise.smartcampus.network.JsonUtils;
 import eu.trentorise.smartcampus.network.RemoteConnector;
 
@@ -55,25 +56,42 @@ public class SCServiceConnector extends RemoteConnector {
 	@Autowired
 	@Value("${communicatorURL}")
 	private String communicatorURL;
+	@Autowired
+	@Value("${moderatorURL}")
+	private String moderatorURL;
 
 	private CommunicatorConnector connector = null;
+	private ModeratorService moderator = null;
 
 	private Log logger = LogFactory.getLog(getClass());
 	
 	protected static final String TS_APP = "core.territory";
 	
-	protected CommunicatorConnector connector() {
+	protected CommunicatorConnector communicatorConnector() {
 		if (connector == null) {
 			try {
 				connector = new CommunicatorConnector(communicatorURL, TS_APP);
 			} catch (Exception e) {
-				logger.error("Failed to instantiate connector: "+e.getMessage(), e);
+				logger.error("Failed to instantiate communicator connector: "+e.getMessage(), e);
 				e.printStackTrace();
 			}
 		}
 		return connector;
 	}
 
+	protected ModeratorService moderatorConnector() {
+		if (moderator == null) {
+			try {
+				moderator = new ModeratorService(moderatorURL);
+			} catch (Exception e) {
+				logger.error("Failed to instantiate moderator connector: "+e.getMessage(), e);
+				e.printStackTrace();
+			}
+		}
+		return moderator;
+	}
+
+	
 	@SuppressWarnings("rawtypes")
 	protected String getToken() {
 		if (token == null || System.currentTimeMillis() + 10000 > expiresAt) {

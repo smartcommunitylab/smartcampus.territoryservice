@@ -69,7 +69,7 @@ public class ModerationNotificationHelper extends SCServiceConnector implements 
 		n.setEntities(eos);
 
 		try {
-			connector().sendAppNotification(n, TS_APP, Collections.singletonList(userId), getToken());
+			communicatorConnector().sendAppNotification(n, TS_APP, Collections.singletonList(userId), getToken());
 		} catch (CommunicatorConnectorException e) {
 			e.printStackTrace();
 			logger .error("Failed to send notifications: "+e.getMessage(), e);

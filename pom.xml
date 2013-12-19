@@ -25,6 +25,12 @@
       <version>2.0</version>
       <type>jar</type>
     </dependency>
+    <dependency>
+      <groupId>eu.trentorise.smartcampus</groupId>
+      <artifactId>moderator.client</artifactId>
+      <version>1.0</version>
+      <type>jar</type>
+    </dependency>
 
 		<dependency>
 			<groupId>org.springframework.security.oauth</groupId>
